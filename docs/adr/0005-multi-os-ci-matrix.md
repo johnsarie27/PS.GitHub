@@ -105,8 +105,3 @@ template was intentionally not copied into this module's PSake harness
 place for a Windows-only test filename discriminator that would only
 surface as CI-green Linux/macOS legs skipping tests they should be
 running.
-
-
-The macOS exclusion is a real gap. If the module is ever adopted by a
-macOS-based agent workflow, this ADR should be superseded with one that
-adds `macos-latest` to the matrix.
