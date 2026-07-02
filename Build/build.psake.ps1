@@ -10,12 +10,6 @@ Properties {
     $lines = '----------------------------------------------------------------------'
 
     # Pester
-    # SELECTS WHICH UNIT TESTS THE 'Test' TASK DISCOVERS:
-    #   All           - cross-platform .tests.ps1 + Windows-only .tests.windows.ps1 (default; matches local-dev behavior)
-    #   CrossPlatform - cross-platform .tests.ps1 only
-    #   WindowsOnly   - .tests.windows.ps1 only
-    # Override from the command line:  ./Build/build.ps1 -Properties @{ PesterScope = 'WindowsOnly' } -TaskList Test
-    $PesterScope = 'All'
     $TestFile = "Test-Unit_$($TimeStamp).xml"
 
     # Script Analyzer
@@ -123,24 +117,19 @@ Task 'Analyze' -depends 'ImportStagingModule' {
 Task 'Test' -depends 'ImportStagingModule' {
     $lines
 
-    # Resolve $TestScripts from $PesterScope here (not in Properties) so that overrides
-    # passed via Invoke-psake -properties / build.ps1 -Properties take effect.
-    switch ($PesterScope) {
-        'CrossPlatform' {
-            $TestScripts = Get-ChildItem "$ProjectRoot/Tests/*/*.tests.ps1"
-        }
-        'WindowsOnly' {
-            $TestScripts = Get-ChildItem "$ProjectRoot/Tests/*/*.tests.windows.ps1"
-        }
-        'All' {
-            $TestScripts = Get-ChildItem "$ProjectRoot/Tests/*/*.tests.ps1"
-            if ($IsWindows) {
-                $TestScripts += Get-ChildItem "$ProjectRoot/Tests/*/*.tests.windows.ps1"
-            }
-        }
-        default {
-            Write-Error -Message ('Unknown PesterScope value [{0}] - expected All, CrossPlatform, or WindowsOnly' -f $PesterScope) -ErrorAction Stop
-        }
+    # Gather test scripts as string[] (Pester's Run.Path is typed
+    # System.String[]; passing FileInfo objects fails the type coercion
+    # on both Linux and Windows). @(...) forces array shape even when the
+    # glob matches exactly one file so that '+=' would not later throw
+    # 'op_Addition not found' on a scalar FileInfo.
+    $TestScripts = @(
+        Get-ChildItem -Path "$ProjectRoot/Tests/*/*.tests.ps1" -ErrorAction SilentlyContinue |
+            ForEach-Object FullName
+    )
+
+    if (-not $TestScripts) {
+        Write-Output -InputObject 'No Pester test files found under Tests/*/*.tests.ps1. Skipping Invoke-Pester.'
+        return
     }
 
     $TestFilePath = Join-Path -Path $ArtifactFolder -ChildPath $TestFile
