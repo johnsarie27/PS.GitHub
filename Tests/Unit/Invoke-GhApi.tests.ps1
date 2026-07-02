@@ -41,7 +41,6 @@ Describe 'Invoke-GhApi' {
                 $r.full_name | Should -Be 'PS-MCS/gh-org'
             }
         }
-
         It 'builds the correct gh arg array (api, path, -X, -H)' {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
@@ -60,7 +59,6 @@ Describe 'Invoke-GhApi' {
                 }
             }
         }
-
         It 'adds --paginate when -Paginate is used' {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
@@ -75,7 +73,6 @@ Describe 'Invoke-GhApi' {
             }
         }
     }
-
     Context '-AllowNotFound (silent 404)' {
         It 'returns $null when gh reports a non-zero exit AND output contains HTTP 404' {
             InModuleScope 'PS.GitHub' {
@@ -92,7 +89,6 @@ Describe 'Invoke-GhApi' {
                 $r | Should -BeNullOrEmpty
             }
         }
-
         It 'still throws for non-404 non-zero exits even with -AllowNotFound' {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
@@ -108,7 +104,6 @@ Describe 'Invoke-GhApi' {
                     Should -Throw -ExpectedMessage '*HTTP 500*'
             }
         }
-
         It 'throws for 404 when -AllowNotFound is NOT specified' {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
@@ -125,7 +120,6 @@ Describe 'Invoke-GhApi' {
             }
         }
     }
-
     Context 'Empty PUT/DELETE response short-circuit' {
         It 'returns $null when PUT response body is whitespace-only' {
             InModuleScope 'PS.GitHub' {
@@ -137,7 +131,6 @@ Describe 'Invoke-GhApi' {
                 $r | Should -BeNullOrEmpty
             }
         }
-
         It 'returns $null when DELETE response body is whitespace-only' {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
@@ -148,7 +141,6 @@ Describe 'Invoke-GhApi' {
                 $r | Should -BeNullOrEmpty
             }
         }
-
         It 'still parses non-empty PUT responses as JSON' {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
@@ -160,7 +152,6 @@ Describe 'Invoke-GhApi' {
             }
         }
     }
-
     Context '-Body forwarding' {
         It 'adds `--input -` to the arg array and forwards a single-string Body to Invoke-Gh' {
             InModuleScope 'PS.GitHub' {
@@ -177,7 +168,6 @@ Describe 'Invoke-GhApi' {
                 }
             }
         }
-
         It 'forwards a string[] Body verbatim to Invoke-Gh (Invoke-Gh handles the join)' {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
@@ -197,7 +187,6 @@ Describe 'Invoke-GhApi' {
             }
         }
     }
-
     Context 'Method plumbing' {
         It 'passes -X PUT for -Method PUT' {
             InModuleScope 'PS.GitHub' {
@@ -213,7 +202,6 @@ Describe 'Invoke-GhApi' {
                 }
             }
         }
-
         It 'rejects unknown methods at parameter binding' {
             InModuleScope 'PS.GitHub' {
                 { Invoke-GhApi -Path 'repos/o/r' -Method 'BOGUS' } |

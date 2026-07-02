@@ -95,11 +95,9 @@ function New-GhBody {
         [ValidateNotNull()]
         [System.Management.Automation.ScriptBlock] $ScriptBlock
     )
-
     Begin {
         Write-Verbose -Message ('Starting {0}' -f $MyInvocation.MyCommand)
     }
-
     Process {
         # ADR-7: no reflow, no rejection. Join string[] with `n verbatim.
         # Callers wanting paragraph-per-line semantics author their input
