@@ -101,7 +101,7 @@ explicit ADR-level justification.
 
 The `.tests.windows.ps1` filename pattern present in the SecurityTools
 template was intentionally not copied into this module's PSake harness
-(see PR-A commit `3b41920`): a cross-platform-by-default module has no
+(deviation from the SecurityTools template landed in PR #2): a cross-platform-by-default module has no
 place for a Windows-only test filename discriminator that would only
 surface as CI-green Linux/macOS legs skipping tests they should be
 running.
