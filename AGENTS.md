@@ -72,7 +72,7 @@ that violates them should be flagged in review.
 PS.GitHub/
   .devcontainer/         devcontainer + Dockerfile (installs gh CLI)
   .github/
-    workflows/ci.yml     Pester + PSScriptAnalyzer, matrix on ubuntu + windows
+    workflows/ci.yml     Pester + PSScriptAnalyzer, matrix on ubuntu + windows + macos
     copilot-instructions.md   thin pointer to this file
     dependabot.yml
     CODEOWNERS
