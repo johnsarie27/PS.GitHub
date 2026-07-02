@@ -33,37 +33,52 @@ string; endpoint shape is not something the caller has to remember.
 
 ## v0.1.0 function inventory
 
+### Public functions (exported via manifest)
+
 | Function | Status | Purpose |
 |---|---|---|
-| `Invoke-GhApi` | not yet ported | Foundation `gh api` wrapper: pagination flatten, silent-404, empty-204 short-circuit, `string[]` boundary normalization, `$PSNativeCommandUseErrorActionPreference` isolation. |
+| `Invoke-GhApi` | not yet ported | Foundation `gh api` wrapper: pagination flatten, silent-404, empty-204 short-circuit. Delegates to the private `Invoke-Gh` for the actual `gh` invocation. |
 | `New-GhBody` | not yet implemented | Authored-body handling. `-ScriptBlock` wrapper shape: writes body to a temp file, invokes the block with the path, cleans up in `finally` even on exception. |
 | `Test-GhAuthScope` | not yet implemented | Parses `gh auth status 2>&1`, asserts required OAuth scopes are present, emits the exact `gh auth refresh -h github.com -s <scope>` remediation on miss. |
 | `Resolve-GhCommitSha` | not yet implemented | Tag/branch/SHA → commit SHA via `GET /repos/{o}/{r}/commits/{ref}` (avoids the annotated-tag-object trap). Optional `-CrossCheck` warns on disagreement with `/git/refs/tags/{tag}`. |
 
+### Private helpers (dot-sourced, not exported)
+
+| Helper | Status | Purpose |
+|---|---|---|
+| `Invoke-Gh` | not yet implemented (PR-B) | Lowest-level `gh` wrapper, modeled on `johnsarie27/PS.DCU/Private/Invoke-DCU.ps1`. Structural enforcement of ADR-4 (`$PSNativeCommandUseErrorActionPreference = $false` in exactly one place) and `string[]` normalization at the boundary. Every public function that invokes `gh` goes through it; direct `& gh` in `Public/` is a review-reject. See ADR-6. |
+
 Status is tracked in `FunctionsToExport` in [PS.GitHub.psd1](PS.GitHub.psd1) —
-the manifest is the authoritative list of what is actually exported.
+the manifest is the authoritative list of what is actually **exported**
+(only public functions).
 
 ## Cross-cutting rules every public function honors
 
 These are non-negotiable and encoded in ADRs where they warrant one. Any PR
 that violates them should be flagged in review.
 
-1. **`$PSNativeCommandUseErrorActionPreference` isolation.** Every public
-   function sets it to `$false` in its own scope so a caller with strict
-   native-error handling cannot turn the `& gh` + `$LASTEXITCODE` pattern into
-   a `NativeCommandExitException`. See `docs/adr/0004-native-command-preference-isolation.md`.
+1. **`$PSNativeCommandUseErrorActionPreference` isolation.** Enforced
+   structurally by the private `Invoke-Gh` helper (ADR-6) so a caller
+   with strict native-error handling cannot turn the `& gh` +
+   `$LASTEXITCODE` pattern into a `NativeCommandExitException`. Direct
+   `& gh` calls in `Public/` are a review-reject. See
+   `docs/adr/0004-native-command-preference-isolation.md` for the rule
+   and `docs/adr/0006-private-invoke-gh-wrapper.md` (PR-B) for the
+   structural enforcement mechanism.
 2. **`string[]` normalization at the boundary.** Any `-Body` / `-Text`
-   parameter runs through `Out-String` / `-join "``n"` before being passed to a
-   typed `[System.String]` `gh` argument. `string[]` capture from native output
-   (e.g. `git show HEAD:path`, `gh issue view -q .body`) is a common source of
+   parameter runs through `Out-String` / `-join "``n"` inside
+   `Invoke-Gh` before being passed to a typed `[System.String]` `gh`
+   argument. `string[]` capture from native output (e.g.
+   `git show HEAD:path`, `gh issue view -q .body`) is a common source of
    `Cannot convert value to type System.String` errors.
 3. **No `--jq` / `--query` for filter/project.** The module returns
    deserialized objects; callers use the pwsh pipeline
-   (`ConvertFrom-Json` / `Where-Object` / `Select-Object`). The one internal
-   `--jq '.[]'` use is inside `Invoke-GhApi -Paginate`'s flatten step.
-4. **Temp-body lifecycle is never the caller's problem.** `New-GhBody` owns
-   creation and disposal end-to-end via the `-ScriptBlock` wrapper shape.
-   Return-path + explicit-cleanup was considered and rejected —
+   (`ConvertFrom-Json` / `Where-Object` / `Select-Object`). The one
+   internal `--jq '.[]'` use is inside `Invoke-GhApi -Paginate`'s
+   flatten step.
+4. **Temp-body lifecycle is never the caller's problem.** `New-GhBody`
+   owns creation and disposal end-to-end via the `-ScriptBlock` wrapper
+   shape. Return-path + explicit-cleanup was considered and rejected —
    see `docs/adr/0002-scriptblock-wrapper-for-body-lifecycle.md`.
 
 ## Layout
