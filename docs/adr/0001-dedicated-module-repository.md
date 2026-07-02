@@ -72,5 +72,5 @@ by the CI-portability requirement, which the alternatives do not satisfy.
 Cross-repo drift is a new failure mode: if `PS-MCS/gh-org` reconcilers
 continue to carry their own `common/Invoke-GhApi.ps1` copy in parallel with
 this module, the two can diverge. A separate follow-on effort (tracked in
-`docs/PLAN.md`) migrates those reconcilers to consume `PS.GitHub` directly
-and delete the copy.
+[`PS-MCS/gh-org#38`](https://github.com/PS-MCS/gh-org/issues/38)) migrates
+those reconcilers to consume `PS.GitHub` directly and delete the copy.
