@@ -18,19 +18,23 @@ These were agreed with the repo owner before scaffolding began. Change them only
 | D2 | Source of `Test-GhAuthScope` | Extract and generalize the `gh auth status`-parsing preflight from `PS-MCS/gh-org`. **RESOLVED 2026-07-02:** the referenced `temp-migration/` path was cleaned up post-migration. The canonical source is now three near-identical inline blocks in `dependabot/Invoke-PSMCSDependabotReconcile.ps1` (~line 89), `codeowners/Invoke-PSMCSCodeOwnerReconcile.ps1` (~line 94), and `github-perms/Invoke-PSMCSTeamPermissionReconcile.ps1` (~line 143). Pattern: `$authStatus = & gh auth status 2>&1 \| Out-String` then `-notmatch` regex against a scope set, with `Write-Error -ErrorAction Stop` on miss including the concrete `gh auth refresh -h github.com -s <scope>` remediation. `Invoke-GhApi.ps1` deliberately does NOT include the preflight — it's scope-agnostic and defers to callers. | Same repo already proved the pattern against real `gh auth status` output shapes. |
 | D3 | Module layout template | Mirror `johnsarie27/SecurityTools` | Consistent with owner's other public modules; established `Public/` / `Private/` / `Tests/` / `Build/` convention. |
 | D4 | `New-GhBody` disposal shape | `ScriptBlock` wrapper only: `New-GhBody -Text $b -ScriptBlock { param($path) ... }` with cleanup in the function's `finally`. | Module is primary consumer is AI agents, not humans. ScriptBlock-only makes cleanup impossible to forget (safe by construction); explicit-cleanup shapes require the caller to remember `try`/`finally`, which is exactly the class of miss the module exists to prevent. |
-| D5 | CI matrix | `ubuntu-latest` + `windows-latest`, PS 7.4 LTS floor | Author-time is Windows; likely reconciler consumers (`PS-MCS/gh-org`) run on Linux. Line-ending sensitivity in `New-GhBody`'s temp-file writer is the specific risk multi-OS CI catches. PS 7.4 LTS is the current PSGallery-consumer alignment point; nothing in v0.1.0 needs 7.6+. |
+| D5 | CI matrix | `ubuntu-latest` + `windows-latest` + `macos-latest`, PS 7.4 LTS floor | Every current and expected consumer runs on a different OS: author-time is Windows, agent devcontainers/Codespaces are Linux, likely reconciler consumers (`PS-MCS/gh-org`) are Linux, and a future agent session on macOS is plausible. Excluding any of the three would let regressions ship blind on that platform. GitHub-hosted parallel runners make the three-leg matrix effectively free in wall-clock and monetary terms on a public repo. PS 7.4 LTS is the current PSGallery-consumer alignment point; nothing in v0.1.0 needs 7.6+. |
 | D6 | Publishing | v0.1.0 = git tag only. No PSGallery push. Consumer repos install via `Install-Module -Path <checkout>`. | Defers a `PSGALLERY_API_KEY` secret and prerelease-tag workflow until real consumer demand exists. |
-| D7 | Repo-scoped agent instructions | Add `AGENTS.md` at repo root + a thin `.github/copilot-instructions.md` pointing at it | Future sessions in this workspace pick up the module's conventions (four cross-cutting rules from #1) automatically instead of re-deriving them each turn. |
+| D7 | Repo-scoped agent instructions | Add `AGENTS.md` at repo root as the single source of truth for agent conventions | Current GitHub Copilot builds read `AGENTS.md` natively at the repo root, and other agent frameworks (Aider, Cursor, etc.) recognize the same convention. A separate `.github/copilot-instructions.md` was originally added as a belt-and-suspenders pointer, then removed on the same PR-A branch (see PR-A commit history) once we verified Copilot picks up `AGENTS.md` directly. If a future tool requires its own pointer file, add it then, not preemptively. |
 | D8 | Architectural record | ADRs under `docs/adr/NNNN-title.md`, Michael Nygard 5-section format | Several decisions above (D3, D4, D5, and the rejected-function-scope list in #1) are exactly the kind of "affects public interface / project-wide convention" decisions the `adr` skill is designed for. |
 
 ## v0.1.0 function scope
 
 Priority order = build order = commit/PR order (see execution plan below).
 
-1. **`Invoke-GhApi`** — foundation. Wrapper around `gh api` with pagination (`--paginate` + `.[]` flatten), `-Method`/`-Body`, silent-404 for optional resources, empty-204 short-circuit, `string[]`→`string` boundary normalization, and per-scope `$PSNativeCommandUseErrorActionPreference = $false` isolation.
+1. **`Invoke-GhApi`** — foundation. Wrapper around `gh api` with pagination (`--paginate` + `.[]` flatten), `-Method`/`-Body`, silent-404 for optional resources, empty-204 short-circuit, `string[]`→`string` boundary normalization. Internally invokes `gh` through the private `Invoke-Gh` helper (see below), which owns the `$PSNativeCommandUseErrorActionPreference = $false` isolation and the structured-output shape.
 2. **`New-GhBody`** — authored-body handling. Enforces one-paragraph-per-line (no reflex hard-wrapping at 72–80 cols), writes body to a temp file, invokes the caller's `-ScriptBlock` with the path, cleans up the temp file in `finally` even on exceptions.
-3. **`Test-GhAuthScope`** — preflight. Parses `gh auth status 2>&1`; asserts required OAuth scopes; on missing scope, `Write-Error -ErrorAction Stop` with the exact `gh auth refresh -h github.com -s <scope>` remediation string in the message.
-4. **`Resolve-GhCommitSha`** — tag/branch/SHA → commit SHA via `GET /repos/{o}/{r}/commits/{ref}`. Avoids the annotated-tag-object trap of `/git/refs/tags/{tag}`. Optional `-CrossCheck` fetches both shapes and warns on disagreement.
+3. **`Test-GhAuthScope`** — preflight. Parses `gh auth status 2>&1`; asserts required OAuth scopes; on missing scope, `Write-Error -ErrorAction Stop` with the exact `gh auth refresh -h github.com -s <scope>` remediation string in the message. Invokes `gh auth status` through the private `Invoke-Gh` helper.
+4. **`Resolve-GhCommitSha`** — tag/branch/SHA → commit SHA via `GET /repos/{o}/{r}/commits/{ref}`. Avoids the annotated-tag-object trap of `/git/refs/tags/{tag}`. Optional `-CrossCheck` fetches both shapes and warns on disagreement. Uses `Invoke-GhApi` (indirectly `Invoke-Gh`).
+
+Private helpers (dot-sourced by `PS.GitHub.psm1`, not exported):
+
+- **`Invoke-Gh`** (Private) — lowest-level `gh` wrapper, modeled on `PS.DCU/Private/Invoke-DCU.ps1`. Structurally enforces ADR-4 (`$PSNativeCommandUseErrorActionPreference = $false` in exactly one place) and ADR-6 (single choke point for `string[]` boundary normalization + consistent structured return shape `{ ExitCode, Output, Arguments, Duration }`). Every public function that invokes `gh` goes through it; direct `& gh` calls in `Public/` are a review-reject.
 
 **Explicitly out of scope for v0.1.0** (kept here for transparency; full rationale lives in #1):
 
@@ -45,8 +49,8 @@ Priority order = build order = commit/PR order (see execution plan below).
 
 Every public function honors these; they are also documented in `AGENTS.md`:
 
-1. **`$PSNativeCommandUseErrorActionPreference` isolation.** Each public function sets it to `$false` in its own scope so a caller with strict native-error handling cannot turn the `& gh` + `$LASTEXITCODE` pattern into a `NativeCommandExitException`.
-2. **`string[]` normalization at the boundary.** Any `-Body`/`-Text` parameter is passed through `Out-String` / `-join "`n"` before being handed to a typed `[System.String]` gh argument.
+1. **`$PSNativeCommandUseErrorActionPreference` isolation.** Enforced structurally by the private `Invoke-Gh` helper (ADR-6) so no public function needs to remember to set it. Direct `& gh` calls in `Public/` are a review-reject.
+2. **`string[]` normalization at the boundary.** Any `-Body`/`-Text` parameter is passed through `Out-String` / `-join "`n"` inside `Invoke-Gh` before being handed to a typed `[System.String]` gh argument.
 3. **No `--jq` / `--query` for filter/project.** Module returns deserialized objects; callers use the pwsh pipeline. The one internal `--jq '.[]'` use is inside `Invoke-GhApi -Paginate`'s flatten step.
 4. **Temp-body lifecycle is never the caller's problem.** `New-GhBody` owns creation and disposal end-to-end.
 
@@ -58,7 +62,6 @@ PS.GitHub/
   .github/
     workflows/
       ci.yml
-    copilot-instructions.md
   .vscode/
   AGENTS.md
   Build/
@@ -66,15 +69,17 @@ PS.GitHub/
   docs/
     PLAN.md              # this file
     adr/
-      0001-dedicated-module-repo.md
+      0001-dedicated-module-repository.md
       0002-scriptblock-wrapper-for-body-lifecycle.md
       0003-rejected-function-scope.md
       0004-native-command-preference-isolation.md
       0005-multi-os-ci-matrix.md
+      0006-private-invoke-gh-wrapper.md
   LICENSE                # already present (MIT)
   PS.GitHub.psd1
   PS.GitHub.psm1
   Private/
+    Invoke-Gh.ps1        # lowest-level gh wrapper; not exported
   Public/
     Invoke-GhApi.ps1
     New-GhBody.ps1
@@ -98,16 +103,20 @@ Each PR references issue #1 and closes one sub-item of its build checklist. Issu
 - Create module skeleton: `PS.GitHub.psd1`, `PS.GitHub.psm1` (dot-source loader for `Public/`, `Private/`), empty `Public/`, `Private/`, `Tests/`, `Build/`, `.gitignore`.
 - Port `.vscode/` and `.devcontainer/` conventions from `SecurityTools`.
 - Add `.github/workflows/ci.yml` — matrix `[ubuntu-latest, windows-latest]`, PS 7.4, Pester + PSScriptAnalyzer, `permissions:` locked to minimum, third-party actions pinned by commit SHA (per `github-actions-security` skill).
-- Add `AGENTS.md` (repo conventions + four cross-cutting rules) and `.github/copilot-instructions.md` (thin pointer to `AGENTS.md`).
+- Add `AGENTS.md` (repo conventions + four cross-cutting rules) at the repo root. Current Copilot builds read this natively; no `.github/copilot-instructions.md` needed.
 - Add the 5 ADRs listed under D8.
 - Replace stub `README.md` with real content (purpose, install-via-path, quickstart, function list, contributing pointer).
 - Add `CONTRIBUTING.md`.
 
-### PR-B — `Invoke-GhApi` + tests
+### PR-B — `Invoke-Gh` (Private) + `Invoke-GhApi` (Public) + tests
 
-- Port `Invoke-GhApi.ps1` unchanged from `PS-MCS/gh-org/common/`.
-- Pester tests covering: `-Paginate` flatten, silent-404 with `-AllowNotFound`, empty-204 short-circuit, `-Body` `string[]` normalization, `$PSNativeCommandUseErrorActionPreference = $true` in caller scope does not break `$LASTEXITCODE` reads.
-- Update manifest `FunctionsToExport`.
+- Author `Private/Invoke-Gh.ps1` — the lowest-level `gh` wrapper. Modeled on `johnsarie27/PS.DCU/Private/Invoke-DCU.ps1` but simplified (no `Start-Process` needed — `gh` streams cleanly through `& gh @Arguments 2>&1`, and stdin pipes via `--input -`). Structural enforcement of ADR-4 (`$PSNativeCommandUseErrorActionPreference = $false` in one place) and ADR-6 (`string[]` normalization + `{ ExitCode, Output, Arguments, Duration }` return shape).
+- Port `Public/Invoke-GhApi.ps1` from `PS-MCS/gh-org/common/Invoke-GhApi.ps1`, refactored to invoke `Invoke-Gh` internally rather than calling `& gh` directly. All existing behavior preserved: `-Paginate` flatten, `-AllowNotFound` silent-404, empty-204 short-circuit, `-Body` accepting `string[]` (normalized inside `Invoke-Gh`).
+- Add `docs/adr/0006-private-invoke-gh-wrapper.md`: Context (agent-facing module, direct `& gh` in every public function meant ADR-4 was convention-enforced, not structural; testability required per-function mocking; return-shape drift between callers). Decision (single private `Invoke-Gh` wrapper with structured `[pscustomobject]` output). Consequences (one more layer of indirection; direct `& gh` in `Public/` is now a review-reject; Pester tests mock `Invoke-Gh` uniformly).
+- Pester tests for both:
+  - `Invoke-Gh`: preference isolation (caller sets `$PSNativeCommandUseErrorActionPreference = $true` → wrapper still returns exit code, does not throw); `string[]` `-StandardInput` normalization; return-shape assertions; non-zero exit code surfaced but not thrown.
+  - `Invoke-GhApi`: `-Paginate` flatten, silent-404 with `-AllowNotFound`, empty-204 short-circuit, `-Body` `string[]` normalization, verifies `Invoke-Gh` is called (via `Mock`) with the expected argument shape.
+- Update manifest `FunctionsToExport` to include `Invoke-GhApi` (only; `Invoke-Gh` is private).
 
 ### PR-C — `New-GhBody` + tests
 
@@ -117,9 +126,9 @@ Each PR references issue #1 and closes one sub-item of its build checklist. Issu
 
 ### PR-D — `Test-GhAuthScope` + tests
 
-- Extract the `gh auth status`-parsing logic from `PS-MCS/gh-org/temp-migration/Invoke-PSMCSPSScriptAnalyzerMigration.ps1`.
-- Generalize: `Test-GhAuthScope -RequiredScope 'workflow','admin:org'` — asserts all listed scopes are present; emits `Write-Error -ErrorAction Stop` with the concrete `gh auth refresh -h github.com -s <missing>` remediation when any are missing.
-- Pester tests: mocked `gh auth status` output covering (a) all scopes present, (b) one missing, (c) not logged in, (d) unexpected output shape.
+- Extract the `gh auth status`-parsing logic from `PS-MCS/gh-org` (see D2 resolution). No single canonical source — the pattern is generalized across three near-identical reconciler copies.
+- Generalize: `Test-GhAuthScope -RequiredScope 'workflow','admin:org'` — asserts all listed scopes are present; emits `Write-Error -ErrorAction Stop` with the concrete `gh auth refresh -h github.com -s <missing>` remediation when any are missing. Invokes `gh auth status` through `Invoke-Gh`.
+- Pester tests: mocked `Invoke-Gh` output covering (a) all scopes present, (b) one missing, (c) not logged in, (d) unexpected output shape.
 
 ### PR-E — `Resolve-GhCommitSha` + v0.1.0 tag
 
