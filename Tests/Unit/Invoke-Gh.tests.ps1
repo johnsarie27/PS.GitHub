@@ -25,9 +25,9 @@ AfterAll {
     Remove-Module -Name 'PS.GitHub' -Force -ErrorAction SilentlyContinue
 }
 
-Describe 'Invoke-Gh' {
-    Context 'Return shape' {
-        It 'returns a PSCustomObject with ExitCode, Output, Arguments, Duration' {
+Describe -Name 'Invoke-Gh' -Fixture {
+    Context -Name 'Return shape' -Fixture {
+        It -Name 'returns a PSCustomObject with ExitCode, Output, Arguments, Duration' -Test {
             InModuleScope 'PS.GitHub' {
                 $r = Invoke-Gh -Arguments @('--version')
                 $r | Should -Not -BeNullOrEmpty
@@ -37,23 +37,20 @@ Describe 'Invoke-Gh' {
                 $r.PSObject.Properties.Name | Should -Contain 'Duration'
             }
         }
-
-        It 'reports ExitCode 0 for `gh --version` and non-empty Output' {
+        It -Name 'reports ExitCode 0 for `gh --version` and non-empty Output' -Test {
             InModuleScope 'PS.GitHub' {
                 $r = Invoke-Gh -Arguments @('--version')
                 $r.ExitCode | Should -Be 0
                 ($r.Output | Out-String) | Should -Match 'gh version'
             }
         }
-
-        It 'echoes the Arguments verbatim on the returned object' {
+        It -Name 'echoes the Arguments verbatim on the returned object' -Test {
             InModuleScope 'PS.GitHub' {
                 $r = Invoke-Gh -Arguments @('--version')
                 $r.Arguments | Should -Be @('--version')
             }
         }
-
-        It 'reports a positive TimeSpan Duration' {
+        It -Name 'reports a positive TimeSpan Duration' -Test {
             InModuleScope 'PS.GitHub' {
                 $r = Invoke-Gh -Arguments @('--version')
                 $r.Duration | Should -BeOfType ([System.TimeSpan])
@@ -61,31 +58,27 @@ Describe 'Invoke-Gh' {
             }
         }
     }
-
-    Context 'Non-zero exit behavior' {
-        It 'does not throw when `gh` exits non-zero' {
+    Context -Name 'Non-zero exit behavior' -Fixture {
+        It -Name 'does not throw when `gh` exits non-zero' -Test {
             InModuleScope 'PS.GitHub' {
                 { Invoke-Gh -Arguments @('--no-such-flag-abcxyz') } | Should -Not -Throw
             }
         }
-
-        It 'surfaces the non-zero ExitCode on the returned object' {
+        It -Name 'surfaces the non-zero ExitCode on the returned object' -Test {
             InModuleScope 'PS.GitHub' {
                 $r = Invoke-Gh -Arguments @('--no-such-flag-abcxyz')
                 $r.ExitCode | Should -Not -Be 0
             }
         }
-
-        It 'still returns Output text (stderr merged via 2>&1)' {
+        It -Name 'still returns Output text (stderr merged via 2>&1)' -Test {
             InModuleScope 'PS.GitHub' {
                 $r = Invoke-Gh -Arguments @('--no-such-flag-abcxyz')
                 ($r.Output | Out-String) | Should -Match 'unknown flag'
             }
         }
     }
-
-    Context 'ADR-4: $PSNativeCommandUseErrorActionPreference isolation' {
-        It 'does not throw when the caller has $PSNativeCommandUseErrorActionPreference = $true' {
+    Context -Name 'ADR-4: $PSNativeCommandUseErrorActionPreference isolation' -Fixture {
+        It -Name 'does not throw when the caller has $PSNativeCommandUseErrorActionPreference = $true' -Test {
             # This is the load-bearing test for ADR-4. Without the isolation
             # inside Invoke-Gh, the call operator would throw a
             # NativeCommandExitException on the non-zero exit before the
@@ -98,16 +91,14 @@ Describe 'Invoke-Gh' {
             }
         }
     }
-
-    Context 'ADR-6: string[] boundary normalization on -StandardInput' {
-        It 'accepts a single string' {
+    Context -Name 'ADR-6: string[] boundary normalization on -StandardInput' -Fixture {
+        It -Name 'accepts a single string' -Test {
             InModuleScope 'PS.GitHub' {
                 { Invoke-Gh -Arguments @('--version') -StandardInput 'ignored' } |
                     Should -Not -Throw
             }
         }
-
-        It 'accepts a string[] and joins it before piping' {
+        It -Name 'accepts a string[] and joins it before piping' -Test {
             # `gh --version` ignores stdin; the test asserts that a string[]
             # -StandardInput is accepted without a type-coercion error and
             # the function returns a normal success result.
@@ -116,8 +107,7 @@ Describe 'Invoke-Gh' {
                 $r.ExitCode | Should -Be 0
             }
         }
-
-        It 'accepts an empty-string -StandardInput' {
+        It -Name 'accepts an empty-string -StandardInput' -Test {
             InModuleScope 'PS.GitHub' {
                 { Invoke-Gh -Arguments @('--version') -StandardInput '' } |
                     Should -Not -Throw

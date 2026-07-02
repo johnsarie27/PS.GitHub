@@ -39,6 +39,7 @@
     # v0.1.0 target: Invoke-GhApi, New-GhBody, Test-GhAuthScope, Resolve-GhCommitSha
     FunctionsToExport    = @(
         'Invoke-GhApi'
+        'New-GhBody'
     )
 
     # Cmdlets to export from this module

@@ -63,7 +63,6 @@ function Invoke-Gh {
         [AllowEmptyString()]
         [System.String[]] $StandardInput
     )
-
     Begin {
         # ADR-4: isolate the preference so callers with strict native-command
         # error handling do not short-circuit exit-code inspection. Because
@@ -73,7 +72,6 @@ function Invoke-Gh {
 
         Write-Verbose -Message ('Starting {0}: gh {1}' -f $MyInvocation.MyCommand, ($Arguments -join ' '))
     }
-
     Process {
         $startTime = Get-Date
 

@@ -96,11 +96,9 @@ function Invoke-GhApi {
         [Parameter(HelpMessage = 'Return $null on HTTP 404 instead of raising a terminating error.')]
         [System.Management.Automation.SwitchParameter] $AllowNotFound
     )
-
     Begin {
         Write-Verbose -Message ('Starting {0}: {1} {2}' -f $MyInvocation.MyCommand, $Method, $Path)
     }
-
     Process {
         # Build the gh arg array. -X <Method> IS explicit even for GET so the
         # error message below always includes the HTTP method.
