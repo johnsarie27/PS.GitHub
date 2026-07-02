@@ -35,7 +35,20 @@ Explicit non-goals are documented in
 ## Install (v0.1.0)
 
 `v0.1.0` is a git-tag-only release; there is no PSGallery publish yet.
-Consumers install by path:
+There are two install paths.
+
+**Preferred (with [`SecurityTools`](https://github.com/johnsarie27/SecurityTools)):**
+`Install-GitHubModule` consumes the release-workflow output directly —
+it fetches the latest release, downloads the `PS.GitHub-vX.Y.Z.zip` asset,
+extracts it to your module path, and unblocks the files:
+
+```powershell
+# Requires SecurityTools:
+# https://github.com/johnsarie27/SecurityTools
+Install-GitHubModule -Account 'johnsarie27' -Repository 'PS.GitHub'
+```
+
+**Manual (without SecurityTools):** install by path from a clone:
 
 ```powershell
 git clone https://github.com/johnsarie27/PS.GitHub.git
