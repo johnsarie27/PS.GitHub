@@ -4,6 +4,11 @@ BeforeAll {
     $script:ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:ManifestPath = Join-Path -Path $script:ProjectRoot -ChildPath 'PS.GitHub.psd1'
     $script:LoaderPath = Join-Path -Path $script:ProjectRoot -ChildPath 'PS.GitHub.psm1'
+    # psake's ImportStagingModule task may have already loaded the staged copy
+    # of the module before Pester runs. Tear down any pre-existing copy so the
+    # 'Loader / imports without throwing' assertion below tests the intended
+    # import from disk rather than a no-op re-import.
+    Get-Module -Name 'PS.GitHub' | Remove-Module -Force
 }
 
 Describe 'PS.GitHub module scaffold' {

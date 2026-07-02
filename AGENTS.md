@@ -37,7 +37,7 @@ string; endpoint shape is not something the caller has to remember.
 
 | Function | Status | Purpose |
 |---|---|---|
-| `Invoke-GhApi` | not yet ported | Foundation `gh api` wrapper: pagination flatten, silent-404, empty-204 short-circuit. Delegates to the private `Invoke-Gh` for the actual `gh` invocation. |
+| `Invoke-GhApi` | ported (PR-B) | Foundation `gh api` wrapper: pagination flatten, silent-404, empty-204 short-circuit. Delegates to the private `Invoke-Gh` for the actual `gh` invocation. |
 | `New-GhBody` | not yet implemented | Authored-body handling. `-ScriptBlock` wrapper shape: writes body to a temp file, invokes the block with the path, cleans up in `finally` even on exception. |
 | `Test-GhAuthScope` | not yet implemented | Parses `gh auth status 2>&1`, asserts required OAuth scopes are present, emits the exact `gh auth refresh -h github.com -s <scope>` remediation on miss. |
 | `Resolve-GhCommitSha` | not yet implemented | Tag/branch/SHA → commit SHA via `GET /repos/{o}/{r}/commits/{ref}` (avoids the annotated-tag-object trap). Optional `-CrossCheck` warns on disagreement with `/git/refs/tags/{tag}`. |
@@ -46,7 +46,7 @@ string; endpoint shape is not something the caller has to remember.
 
 | Helper | Status | Purpose |
 |---|---|---|
-| `Invoke-Gh` | not yet implemented (PR-B) | Lowest-level `gh` wrapper, modeled on `johnsarie27/PS.DCU/Private/Invoke-DCU.ps1`. Structural enforcement of ADR-4 (`$PSNativeCommandUseErrorActionPreference = $false` in exactly one place) and `string[]` normalization at the boundary. Every public function that invokes `gh` goes through it; direct `& gh` in `Public/` is a review-reject. See ADR-6. |
+| `Invoke-Gh` | implemented (PR-B) | Lowest-level `gh` wrapper, modeled on `johnsarie27/PS.DCU/Private/Invoke-DCU.ps1`. Structural enforcement of ADR-4 (`$PSNativeCommandUseErrorActionPreference = $false` in exactly one place) and `string[]` normalization at the boundary. Every public function that invokes `gh` goes through it; direct `& gh` in `Public/` is a review-reject. See ADR-6. |
 
 Status is tracked in `FunctionsToExport` in [PS.GitHub.psd1](PS.GitHub.psd1) —
 the manifest is the authoritative list of what is actually **exported**

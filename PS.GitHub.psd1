@@ -37,7 +37,9 @@
 
     # Functions to export from this module. Populated per-PR as functions land.
     # v0.1.0 target: Invoke-GhApi, New-GhBody, Test-GhAuthScope, Resolve-GhCommitSha
-    FunctionsToExport    = @()
+    FunctionsToExport    = @(
+        'Invoke-GhApi'
+    )
 
     # Cmdlets to export from this module
     CmdletsToExport      = @()
