@@ -1,4 +1,0 @@
-# Placeholder — remove this file once real content lands.
-#
-# Private/ contains internal helpers dot-sourced by the module loader but
-# intentionally NOT exported via the manifest. Naming rules match Public/.

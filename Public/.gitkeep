@@ -1,7 +1,0 @@
-# Placeholder — remove this file once real content lands.
-#
-# Public/ contains one .ps1 per exported function. File name matches the
-# function name (Verb-Noun.ps1). Every function file has a single function
-# definition with comment-based help and a .NOTES `Status:` line.
-#
-# See CONTRIBUTING.md for the new-function checklist and function template.
