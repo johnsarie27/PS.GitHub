@@ -40,6 +40,7 @@
     FunctionsToExport    = @(
         'Invoke-GhApi'
         'New-GhBody'
+        'Resolve-GhCommitSha'
         'Test-GhAuthScope'
     )
 
@@ -57,16 +58,26 @@
 
         PSData = @{
             # Tags applied to this module. These help with module discovery in online galleries.
-            Tags       = @('GitHub', 'gh', 'REST', 'API', 'Automation', 'DevOps')
+            Tags         = @('GitHub', 'gh', 'REST', 'API', 'Automation', 'DevOps')
 
             # A URL to the license for this module.
-            LicenseUri = 'https://github.com/johnsarie27/PS.GitHub/blob/main/LICENSE'
+            LicenseUri   = 'https://github.com/johnsarie27/PS.GitHub/blob/main/LICENSE'
 
             # A URL to the main website for this project.
-            ProjectUri = 'https://github.com/johnsarie27/PS.GitHub'
+            ProjectUri   = 'https://github.com/johnsarie27/PS.GitHub'
 
             # ReleaseNotes of this module
-            # ReleaseNotes = ''
+            ReleaseNotes = @'
+v0.1.0 - Initial release. Ships four public functions:
+  * Invoke-GhApi        - gh api wrapper with pagination, silent-404, empty-204 short-circuit
+  * New-GhBody          - ScriptBlock wrapper that owns temp body file lifecycle end-to-end
+  * Test-GhAuthScope    - gh auth status preflight; throws with concrete remediation on miss
+  * Resolve-GhCommitSha - tag/branch/SHA -> commit SHA (avoids annotated-tag-object trap)
+
+Also ships one private helper (Invoke-Gh) that enforces preference isolation
+and string[] boundary normalization structurally. Tag-only release; not
+published to PSGallery in v0.1.0.
+'@
 
         } # End of PSData hashtable
 
