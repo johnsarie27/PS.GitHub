@@ -1,7 +1,0 @@
-# Placeholder — remove this file once real content lands.
-#
-# Tests/ layout mirrors SecurityTools:
-#   Tests/Unit/    — Pester tests for public and private functions
-#   Tests/Common/  — shared test helpers (mocks, fixtures)
-#
-# One Pester file per function, named <Verb-Noun>.tests.ps1.
