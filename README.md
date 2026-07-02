@@ -1,7 +1,6 @@
 # PS.GitHub
 
 [![ci](https://github.com/johnsarie27/PS.GitHub/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/johnsarie27/PS.GitHub/actions/workflows/ci.yml)
-[![release](https://github.com/johnsarie27/PS.GitHub/actions/workflows/release.yml/badge.svg)](https://github.com/johnsarie27/PS.GitHub/actions/workflows/release.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PowerShell](https://img.shields.io/badge/PowerShell-7.4%2B-blue?logo=powershell&logoColor=white)](https://github.com/PowerShell/PowerShell)
 [![GitHub release](https://img.shields.io/github/v/release/johnsarie27/PS.GitHub)](https://github.com/johnsarie27/PS.GitHub/releases/latest)
