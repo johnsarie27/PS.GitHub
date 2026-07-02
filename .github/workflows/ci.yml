@@ -1,0 +1,56 @@
+name: ci
+run-name: ci
+
+on:
+  pull_request:
+    branches: ["*"]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  validate:
+    name: validate (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - shell: pwsh # install dependencies (Pester, psake, PSScriptAnalyzer)
+        run: ./Build/build.ps1 -ResolveDependency -TaskList 'Init'
+
+      - shell: pwsh # stage module (copy sources into Staging/)
+        run: ./Build/build.ps1 -TaskList 'CombineFunctionsAndStage'
+
+      - shell: pwsh # psscriptanalyzer
+        run: ./Build/build.ps1 -TaskList 'Analyze'
+
+      - shell: pwsh # pester
+        run: ./Build/build.ps1 -TaskList 'Test'
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: Pester Results (${{ matrix.os }})
+          path: "Artifacts/**/Test-*.xml"
+          if-no-files-found: warn
+
+      - name: Publish Pester results
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
+        if: always()
+        with:
+          name: Pester Tests (${{ matrix.os }})
+          path: Artifacts/**/Test-*.xml
+          reporter: java-junit
+          fail-on-error: false
