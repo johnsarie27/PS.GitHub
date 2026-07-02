@@ -1,10 +1,10 @@
 # Contributing Guide
 
 - Minor fixes (typo, doc tweak) can go directly as a pull request.
-- Substantive changes should start with a comment on an existing issue or a
-  new issue on this repository. See
-  [`docs/PLAN.md`](docs/PLAN.md) for the current v0.1.0 scope; if the change
-  is out of scope for v0.1.0, we may defer it.
+- Substantive changes should start with a new issue on this repository. See
+  the [ADRs](docs/adr/) for architecturally significant decisions that
+  constrain what the module does and doesn't do; if a proposed change conflicts
+  with an ADR, expect the PR to require a new ADR that supersedes it.
 - **Focus each pull request on a single function or a single cross-cutting
   concern.** Big multi-function PRs are hard to review and hard to revert.
 

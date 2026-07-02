@@ -6,15 +6,8 @@ skill file from scratch.
 
 **Read first:**
 
-- [docs/PLAN.md](docs/PLAN.md) — the current v0.1.0 build plan with locked
-  decisions (D1–D8), function scope, PR sequence, and open unknowns. This is
-  the execution doc; if it disagrees with anything below, `PLAN.md` wins until
-  it is updated.
-- [Umbrella tracking issue #1](https://github.com/johnsarie27/PS.GitHub/issues/1) —
-  the design rationale (what pain points, what shape decisions, what was
-  rejected and why). Historical; the plan supersedes any conflicting execution
-  detail.
-- [docs/adr/](docs/adr/) — architecturally significant decisions.
+- [`docs/adr/`](docs/adr/) — architecturally significant decisions (`0001` through `0007`). Start here for "why is it this way?" questions.
+- [Umbrella tracking issue #1](https://github.com/johnsarie27/PS.GitHub/issues/1) — historical: the design rationale that motivated the module (pain points, shape decisions, what was rejected and why). Closed 2026-07-02 when v0.1.0 shipped.
 
 ## Purpose
 
@@ -98,7 +91,6 @@ PS.GitHub/
   Private/               internal helpers, NOT exported
   Tests/                 Pester tests, Tests/Unit/<Function>.tests.ps1
   docs/
-    PLAN.md              v0.1.0 build plan
     adr/                 architectural decision records
   PS.GitHub.psd1         module manifest (authoritative export list)
   PS.GitHub.psm1         module loader (dot-sources Public/ + Private/)
@@ -112,10 +104,10 @@ PS.GitHub/
 
 ### Branching + PR flow
 
-- One PR per function (see `docs/PLAN.md` PR-B through PR-E). Scaffold PRs
-  (like PR-A) are permitted for cross-cutting infrastructure work.
-- Branches: `<issue-number>-<short-slug>` (e.g. `1-scaffold-adrs-ci`).
-- Every PR references issue #1 with `(refs #1)`. Only PR-E `closes #1`.
+- One PR per function or per cross-cutting concern. Historical example: v0.1.0 shipped as five PRs (scaffold, then one per function), tracked under closed issue #1.
+- Branches: `<issue-number>-<short-slug>` (e.g. `1-scaffold-adrs-ci`, `7-fix-paginate-flatten`).
+- Every PR references the tracking issue with `(refs #N)`. The final PR of a group uses `Closes #N`.
+- Commit messages follow the user's convention: action + scope in the subject, multi-paragraph rationale in the body when non-trivial.
 - Commit messages follow the user's convention: action + scope in the subject,
   multi-paragraph rationale in the body when non-trivial.
 

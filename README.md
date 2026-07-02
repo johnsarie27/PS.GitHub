@@ -6,8 +6,7 @@ the module targets a curated set of recurring pain points that always-on
 author-time guidance cannot prevent, because the mistakes involve stateful
 side effects that outlive the author's attention span.
 
-**Status:** v0.1.0 in progress. See [`docs/PLAN.md`](docs/PLAN.md) for the
-build plan and current sub-item status.
+**Status:** v0.1.0 shipped 2026-07-02. See the [ADRs](docs/adr/) for architectural decisions and the closed [tracking issue #1](https://github.com/johnsarie27/PS.GitHub/issues/1) for the original design rationale.
 
 ## What it prevents
 
