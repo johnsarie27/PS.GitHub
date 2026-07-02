@@ -1,5 +1,5 @@
 # use the 730MB sdk image to build
-FROM mcr.microsoft.com/dotnet/sdk as builder
+FROM mcr.microsoft.com/dotnet/sdk AS builder
 
 # install the latest version of PowerShell
 RUN dotnet tool install -g PowerShell
@@ -17,4 +17,4 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # run powershell
-ENTRYPOINT pwsh
+ENTRYPOINT ["pwsh"]
