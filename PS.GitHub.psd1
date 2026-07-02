@@ -40,6 +40,7 @@
     FunctionsToExport    = @(
         'Invoke-GhApi'
         'New-GhBody'
+        'Test-GhAuthScope'
     )
 
     # Cmdlets to export from this module
