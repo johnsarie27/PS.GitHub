@@ -38,7 +38,7 @@ string; endpoint shape is not something the caller has to remember.
 | Function | Status | Purpose |
 |---|---|---|
 | `Invoke-GhApi` | ported (PR-B) | Foundation `gh api` wrapper: pagination flatten, silent-404, empty-204 short-circuit. Delegates to the private `Invoke-Gh` for the actual `gh` invocation. |
-| `New-GhBody` | not yet implemented | Authored-body handling. `-ScriptBlock` wrapper shape: writes body to a temp file, invokes the block with the path, cleans up in `finally` even on exception. |
+| `New-GhBody` | implemented (PR-C) | Authored-body handling. `-ScriptBlock` wrapper shape: writes body to a temp file, invokes the block with the path, cleans up in `finally` even on exception. Paragraph handling is convention-only per ADR-7. |
 | `Test-GhAuthScope` | not yet implemented | Parses `gh auth status 2>&1`, asserts required OAuth scopes are present, emits the exact `gh auth refresh -h github.com -s <scope>` remediation on miss. |
 | `Resolve-GhCommitSha` | not yet implemented | Tag/branch/SHA → commit SHA via `GET /repos/{o}/{r}/commits/{ref}` (avoids the annotated-tag-object trap). Optional `-CrossCheck` warns on disagreement with `/git/refs/tags/{tag}`. |
 
