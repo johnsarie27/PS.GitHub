@@ -20,7 +20,7 @@ These were agreed with the repo owner before scaffolding began. Change them only
 | D4 | `New-GhBody` disposal shape | `ScriptBlock` wrapper only: `New-GhBody -Text $b -ScriptBlock { param($path) ... }` with cleanup in the function's `finally`. | Module is primary consumer is AI agents, not humans. ScriptBlock-only makes cleanup impossible to forget (safe by construction); explicit-cleanup shapes require the caller to remember `try`/`finally`, which is exactly the class of miss the module exists to prevent. |
 | D5 | CI matrix | `ubuntu-latest` + `windows-latest` + `macos-latest`, PS 7.4 LTS floor | Every current and expected consumer runs on a different OS: author-time is Windows, agent devcontainers/Codespaces are Linux, likely reconciler consumers (`PS-MCS/gh-org`) are Linux, and a future agent session on macOS is plausible. Excluding any of the three would let regressions ship blind on that platform. GitHub-hosted parallel runners make the three-leg matrix effectively free in wall-clock and monetary terms on a public repo. PS 7.4 LTS is the current PSGallery-consumer alignment point; nothing in v0.1.0 needs 7.6+. |
 | D6 | Publishing | v0.1.0 = git tag only. No PSGallery push. Consumer repos install via `Install-Module -Path <checkout>`. | Defers a `PSGALLERY_API_KEY` secret and prerelease-tag workflow until real consumer demand exists. |
-| D7 | Repo-scoped agent instructions | Add `AGENTS.md` at repo root + a thin `.github/copilot-instructions.md` pointing at it | Future sessions in this workspace pick up the module's conventions (four cross-cutting rules from #1) automatically instead of re-deriving them each turn. |
+| D7 | Repo-scoped agent instructions | Add `AGENTS.md` at repo root as the single source of truth for agent conventions | Current GitHub Copilot builds read `AGENTS.md` natively at the repo root, and other agent frameworks (Aider, Cursor, etc.) recognize the same convention. A separate `.github/copilot-instructions.md` was originally added as a belt-and-suspenders pointer, then removed on the same PR-A branch (see PR-A commit history) once we verified Copilot picks up `AGENTS.md` directly. If a future tool requires its own pointer file, add it then, not preemptively. |
 | D8 | Architectural record | ADRs under `docs/adr/NNNN-title.md`, Michael Nygard 5-section format | Several decisions above (D3, D4, D5, and the rejected-function-scope list in #1) are exactly the kind of "affects public interface / project-wide convention" decisions the `adr` skill is designed for. |
 
 ## v0.1.0 function scope
@@ -62,7 +62,6 @@ PS.GitHub/
   .github/
     workflows/
       ci.yml
-    copilot-instructions.md
   .vscode/
   AGENTS.md
   Build/
@@ -104,7 +103,7 @@ Each PR references issue #1 and closes one sub-item of its build checklist. Issu
 - Create module skeleton: `PS.GitHub.psd1`, `PS.GitHub.psm1` (dot-source loader for `Public/`, `Private/`), empty `Public/`, `Private/`, `Tests/`, `Build/`, `.gitignore`.
 - Port `.vscode/` and `.devcontainer/` conventions from `SecurityTools`.
 - Add `.github/workflows/ci.yml` — matrix `[ubuntu-latest, windows-latest]`, PS 7.4, Pester + PSScriptAnalyzer, `permissions:` locked to minimum, third-party actions pinned by commit SHA (per `github-actions-security` skill).
-- Add `AGENTS.md` (repo conventions + four cross-cutting rules) and `.github/copilot-instructions.md` (thin pointer to `AGENTS.md`).
+- Add `AGENTS.md` (repo conventions + four cross-cutting rules) at the repo root. Current Copilot builds read this natively; no `.github/copilot-instructions.md` needed.
 - Add the 5 ADRs listed under D8.
 - Replace stub `README.md` with real content (purpose, install-via-path, quickstart, function list, contributing pointer).
 - Add `CONTRIBUTING.md`.

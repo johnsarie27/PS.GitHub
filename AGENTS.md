@@ -88,7 +88,6 @@ PS.GitHub/
   .devcontainer/         devcontainer + Dockerfile (installs gh CLI)
   .github/
     workflows/ci.yml     Pester + PSScriptAnalyzer, matrix on ubuntu + windows + macos
-    copilot-instructions.md   thin pointer to this file
     dependabot.yml
     CODEOWNERS
   .vscode/               editor settings + PSScriptAnalyzer rules
@@ -104,7 +103,7 @@ PS.GitHub/
   README.md              user-facing quickstart + function list
   CONTRIBUTING.md        new-function checklist + template
   LICENSE
-  AGENTS.md              this file
+  AGENTS.md              this file (single source of truth for agent conventions)
 ```
 
 ## Working conventions
