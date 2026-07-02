@@ -26,9 +26,9 @@ AfterAll {
     Remove-Module -Name 'PS.GitHub' -Force -ErrorAction SilentlyContinue
 }
 
-Describe 'New-GhBody' {
-    Context 'Happy path' {
-        It 'writes -Text as a string to a temp file and invokes the ScriptBlock' {
+Describe -Name 'New-GhBody' -Fixture {
+    Context -Name 'Happy path' -Fixture {
+        It -Name 'writes -Text as a string to a temp file and invokes the ScriptBlock' -Test {
             $observed = New-GhBody -Text 'hello world' -ScriptBlock {
                 param($path)
                 [PSCustomObject] @{
@@ -40,21 +40,21 @@ Describe 'New-GhBody' {
             $observed.Path | Should -Not -BeNullOrEmpty
             $observed.Content | Should -Be 'hello world'
         }
-        It 'joins string[] -Text with newlines' {
+        It -Name 'joins string[] -Text with newlines' -Test {
             $observed = New-GhBody -Text @('line 1', 'line 2', 'line 3') -ScriptBlock {
                 param($path)
                 Get-Content -LiteralPath $path -Raw
             }
             $observed | Should -Be "line 1`nline 2`nline 3"
         }
-        It 'preserves blank-string elements as paragraph breaks' {
+        It -Name 'preserves blank-string elements as paragraph breaks' -Test {
             $observed = New-GhBody -Text @('para 1', '', 'para 2') -ScriptBlock {
                 param($path)
                 Get-Content -LiteralPath $path -Raw
             }
             $observed | Should -Be "para 1`n`npara 2"
         }
-        It 'writes the file inside [IO.Path]::GetTempPath()' {
+        It -Name 'writes the file inside [IO.Path]::GetTempPath()' -Test {
             $observed = New-GhBody -Text 'x' -ScriptBlock {
                 param($path)
                 $path
@@ -62,27 +62,27 @@ Describe 'New-GhBody' {
             $expectedRoot = [System.IO.Path]::GetTempPath()
             $observed | Should -BeLike ($expectedRoot + '*')
         }
-        It 'returns whatever the ScriptBlock returns (transparent passthrough)' {
+        It -Name 'returns whatever the ScriptBlock returns (transparent passthrough)' -Test {
             $result = New-GhBody -Text 'x' -ScriptBlock { param($path); 42 }
             $result | Should -Be 42
         }
     }
-    Context 'Temp-file lifecycle guarantee' {
-        It 'ensures the temp file exists while the ScriptBlock runs' {
+    Context -Name 'Temp-file lifecycle guarantee' -Fixture {
+        It -Name 'ensures the temp file exists while the ScriptBlock runs' -Test {
             $observed = New-GhBody -Text 'x' -ScriptBlock {
                 param($path)
                 Test-Path -LiteralPath $path -PathType Leaf
             }
             $observed | Should -BeTrue
         }
-        It 'deletes the temp file after the ScriptBlock returns normally' {
+        It -Name 'deletes the temp file after the ScriptBlock returns normally' -Test {
             $capturedPath = New-GhBody -Text 'x' -ScriptBlock {
                 param($path)
                 $path
             }
             Test-Path -LiteralPath $capturedPath | Should -BeFalse
         }
-        It 'STILL deletes the temp file when the ScriptBlock throws (load-bearing)' {
+        It -Name 'STILL deletes the temp file when the ScriptBlock throws (load-bearing)' -Test {
             # This is the whole reason the wrapper exists (ADR-2). If the
             # `finally` were missing, an exception in the ScriptBlock would
             # leak the temp file. Uses a hashtable-as-ref so the block's
@@ -104,7 +104,7 @@ Describe 'New-GhBody' {
             $capture.Path | Should -Not -BeNullOrEmpty
             Test-Path -LiteralPath $capture.Path | Should -BeFalse
         }
-        It 'propagates the ScriptBlock exception after cleanup' {
+        It -Name 'propagates the ScriptBlock exception after cleanup' -Test {
             $capture = @{ Path = $null }
             $threwMessage = $null
             try {
@@ -121,8 +121,8 @@ Describe 'New-GhBody' {
             Test-Path -LiteralPath $capture.Path | Should -BeFalse
         }
     }
-    Context 'Edge cases' {
-        It 'accepts an empty string' {
+    Context -Name 'Edge cases' -Fixture {
+        It -Name 'accepts an empty string' -Test {
             $observed = New-GhBody -Text '' -ScriptBlock {
                 param($path)
                 Get-Content -LiteralPath $path -Raw
@@ -131,14 +131,14 @@ Describe 'New-GhBody' {
             # a zero-byte file returns $null.
             $observed | Should -BeNullOrEmpty
         }
-        It 'accepts an empty array' {
+        It -Name 'accepts an empty array' -Test {
             $observed = New-GhBody -Text @() -ScriptBlock {
                 param($path)
                 Get-Content -LiteralPath $path -Raw
             }
             $observed | Should -BeNullOrEmpty
         }
-        It 'writes UTF-8 without BOM' {
+        It -Name 'writes UTF-8 without BOM' -Test {
             $bytes = New-GhBody -Text 'hello' -ScriptBlock {
                 param($path)
                 [System.IO.File]::ReadAllBytes($path)
@@ -148,12 +148,12 @@ Describe 'New-GhBody' {
             $bytes.Length | Should -Be 5
             $bytes[0] | Should -Be 0x68  # 'h'
         }
-        It 'rejects a null ScriptBlock' {
+        It -Name 'rejects a null ScriptBlock' -Test {
             { New-GhBody -Text 'x' -ScriptBlock $null } | Should -Throw
         }
     }
-    Context 'Interaction with error paths' {
-        It 'still cleans up when the ScriptBlock exits via return' {
+    Context -Name 'Interaction with error paths' -Fixture {
+        It -Name 'still cleans up when the ScriptBlock exits via return' -Test {
             $capturedPath = New-GhBody -Text 'x' -ScriptBlock {
                 param($path)
                 # `return` inside a scriptblock invoked with `&` still
@@ -163,7 +163,7 @@ Describe 'New-GhBody' {
             }
             Test-Path -LiteralPath $capturedPath | Should -BeFalse
         }
-        It 'still cleans up when the ScriptBlock uses Write-Error -ErrorAction Stop' {
+        It -Name 'still cleans up when the ScriptBlock uses Write-Error -ErrorAction Stop' -Test {
             $capture = @{ Path = $null }
             $threw = $false
             try {
@@ -180,8 +180,8 @@ Describe 'New-GhBody' {
             Test-Path -LiteralPath $capture.Path | Should -BeFalse
         }
     }
-    Context 'SupportsShouldProcess (-WhatIf)' {
-        It 'declares SupportsShouldProcess with ConfirmImpact = Low' {
+    Context -Name 'SupportsShouldProcess (-WhatIf)' -Fixture {
+        It -Name 'declares SupportsShouldProcess with ConfirmImpact = Low' -Test {
             $cmd = Get-Command -Name 'New-GhBody'
             $cmd.Parameters.ContainsKey('WhatIf') | Should -BeTrue
             $cmd.Parameters.ContainsKey('Confirm') | Should -BeTrue
@@ -192,7 +192,7 @@ Describe 'New-GhBody' {
             $attr.SupportsShouldProcess | Should -BeTrue
             $attr.ConfirmImpact | Should -Be 'Low'
         }
-        It 'does NOT invoke the ScriptBlock when -WhatIf is passed' {
+        It -Name 'does NOT invoke the ScriptBlock when -WhatIf is passed' -Test {
             $capture = @{ Invoked = $false; Path = $null }
             New-GhBody -Text 'x' -ScriptBlock {
                 param($path)
@@ -203,7 +203,7 @@ Describe 'New-GhBody' {
             $capture.Invoked | Should -BeFalse
             $capture.Path | Should -BeNullOrEmpty
         }
-        It 'does NOT create a temp file when -WhatIf is passed' {
+        It -Name 'does NOT create a temp file when -WhatIf is passed' -Test {
             # Snapshot the temp directory contents before and after.
             # Under -WhatIf, no temp file should be created.
             $tempDir = [System.IO.Path]::GetTempPath()
@@ -216,7 +216,7 @@ Describe 'New-GhBody' {
             # would fail if New-GhBody consistently left a file behind.
             ($after - $before) | Should -BeLessOrEqual 0
         }
-        It 'returns $null when -WhatIf is passed' {
+        It -Name 'returns $null when -WhatIf is passed' -Test {
             $result = New-GhBody -Text 'x' -ScriptBlock { param($path); 'would-run' } -WhatIf
             $result | Should -BeNullOrEmpty
         }

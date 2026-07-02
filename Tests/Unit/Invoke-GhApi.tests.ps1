@@ -23,9 +23,9 @@ AfterAll {
     Remove-Module -Name 'PS.GitHub' -Force -ErrorAction SilentlyContinue
 }
 
-Describe 'Invoke-GhApi' {
-    Context 'GET happy path' {
-        It 'parses JSON and returns a deserialized object' {
+Describe -Name 'Invoke-GhApi' -Fixture {
+    Context -Name 'GET happy path' -Fixture {
+        It -Name 'parses JSON and returns a deserialized object' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{
@@ -41,7 +41,7 @@ Describe 'Invoke-GhApi' {
                 $r.full_name | Should -Be 'PS-MCS/gh-org'
             }
         }
-        It 'builds the correct gh arg array (api, path, -X, -H)' {
+        It -Name 'builds the correct gh arg array (api, path, -X, -H)' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 0; Output = '{}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
@@ -59,7 +59,7 @@ Describe 'Invoke-GhApi' {
                 }
             }
         }
-        It 'adds --paginate when -Paginate is used' {
+        It -Name 'adds --paginate when -Paginate is used' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 0; Output = '[{"a":1}]'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
@@ -73,8 +73,8 @@ Describe 'Invoke-GhApi' {
             }
         }
     }
-    Context '-AllowNotFound (silent 404)' {
-        It 'returns $null when gh reports a non-zero exit AND output contains HTTP 404' {
+    Context -Name '-AllowNotFound (silent 404)' -Fixture {
+        It -Name 'returns $null when gh reports a non-zero exit AND output contains HTTP 404' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{
@@ -89,7 +89,7 @@ Describe 'Invoke-GhApi' {
                 $r | Should -BeNullOrEmpty
             }
         }
-        It 'still throws for non-404 non-zero exits even with -AllowNotFound' {
+        It -Name 'still throws for non-404 non-zero exits even with -AllowNotFound' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{
@@ -104,7 +104,7 @@ Describe 'Invoke-GhApi' {
                     Should -Throw -ExpectedMessage '*HTTP 500*'
             }
         }
-        It 'throws for 404 when -AllowNotFound is NOT specified' {
+        It -Name 'throws for 404 when -AllowNotFound is NOT specified' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{
@@ -120,8 +120,8 @@ Describe 'Invoke-GhApi' {
             }
         }
     }
-    Context 'Empty PUT/DELETE response short-circuit' {
-        It 'returns $null when PUT response body is whitespace-only' {
+    Context -Name 'Empty PUT/DELETE response short-circuit' -Fixture {
+        It -Name 'returns $null when PUT response body is whitespace-only' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 0; Output = ''; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
@@ -131,7 +131,7 @@ Describe 'Invoke-GhApi' {
                 $r | Should -BeNullOrEmpty
             }
         }
-        It 'returns $null when DELETE response body is whitespace-only' {
+        It -Name 'returns $null when DELETE response body is whitespace-only' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 0; Output = "  `n  "; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
@@ -141,7 +141,7 @@ Describe 'Invoke-GhApi' {
                 $r | Should -BeNullOrEmpty
             }
         }
-        It 'still parses non-empty PUT responses as JSON' {
+        It -Name 'still parses non-empty PUT responses as JSON' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 0; Output = '{"names":["a","b"]}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
@@ -152,8 +152,8 @@ Describe 'Invoke-GhApi' {
             }
         }
     }
-    Context '-Body forwarding' {
-        It 'adds `--input -` to the arg array and forwards a single-string Body to Invoke-Gh' {
+    Context -Name '-Body forwarding' -Fixture {
+        It -Name 'adds `--input -` to the arg array and forwards a single-string Body to Invoke-Gh' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 0; Output = '{}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
@@ -168,7 +168,7 @@ Describe 'Invoke-GhApi' {
                 }
             }
         }
-        It 'forwards a string[] Body verbatim to Invoke-Gh (Invoke-Gh handles the join)' {
+        It -Name 'forwards a string[] Body verbatim to Invoke-Gh (Invoke-Gh handles the join)' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 0; Output = '{}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
@@ -187,8 +187,8 @@ Describe 'Invoke-GhApi' {
             }
         }
     }
-    Context 'Method plumbing' {
-        It 'passes -X PUT for -Method PUT' {
+    Context -Name 'Method plumbing' -Fixture {
+        It -Name 'passes -X PUT for -Method PUT' -Test {
             InModuleScope 'PS.GitHub' {
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 0; Output = '{}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
@@ -202,7 +202,7 @@ Describe 'Invoke-GhApi' {
                 }
             }
         }
-        It 'rejects unknown methods at parameter binding' {
+        It -Name 'rejects unknown methods at parameter binding' -Test {
             InModuleScope 'PS.GitHub' {
                 { Invoke-GhApi -Path 'repos/o/r' -Method 'BOGUS' } |
                     Should -Throw
