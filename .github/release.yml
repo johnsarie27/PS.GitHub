@@ -1,0 +1,40 @@
+# Configuration for GitHub's auto-generated release notes.
+# See https://docs.github.com/repositories/releasing-projects-on-github/automatically-generated-release-notes
+#
+# Categorizes merged PRs by label. Add labels to PRs before merging so
+# the generated release body groups them cleanly. Unlabeled PRs fall
+# into "Other Changes".
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+    authors:
+      - dependabot
+  categories:
+    - title: Breaking Changes
+      labels:
+        - breaking
+        - breaking-change
+    - title: New Features
+      labels:
+        - enhancement
+        - feature
+    - title: Bug Fixes
+      labels:
+        - bug
+        - fix
+    - title: Security
+      labels:
+        - security
+    - title: Documentation
+      labels:
+        - documentation
+        - docs
+    - title: CI / Build
+      labels:
+        - ci
+        - build
+        - dependencies
+    - title: Other Changes
+      labels:
+        - "*"
