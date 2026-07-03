@@ -66,9 +66,9 @@ that violates them should be flagged in review.
    `Cannot convert value to type System.String` errors.
 3. **No `--jq` / `--query` for filter/project.** The module returns
    deserialized objects; callers use the pwsh pipeline
-   (`ConvertFrom-Json` / `Where-Object` / `Select-Object`). The one
-   internal `--jq '.[]'` use is inside `Invoke-GhApi -Paginate`'s
-   flatten step.
+   (`ConvertFrom-Json` / `Where-Object` / `Select-Object`). `-Paginate`
+   delegates to `gh --paginate` and pipes the merged array straight to
+   `ConvertFrom-Json`; no flatten step is needed or present.
 4. **Temp-body lifecycle is never the caller's problem.** `New-GhBody`
    owns creation and disposal end-to-end via the `-ScriptBlock` wrapper
    shape. Return-path + explicit-cleanup was considered and rejected —
