@@ -41,7 +41,7 @@ does not re-propose them without new evidence.
 
 - **`Get-GhPaginated` — dedicated pagination helper.** The idea: separate
   function for paginated endpoints. `Invoke-GhApi -Paginate` already
-  supports pagination via `gh api --paginate` plus a `--jq '.[]'` flatten.
+  supports pagination via `gh api --paginate` (no flatten step needed).
   A dedicated helper would be a three-line convenience wrapper around that
   existing behavior — not a feature, and pure duplication.
 
