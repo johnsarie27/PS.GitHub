@@ -12,7 +12,7 @@
     # Major = significant changes, breaking changes or major new features
     # Minor = new functions or features
     # Build = bug fixes and minor updates
-    ModuleVersion        = '0.1.0'
+    ModuleVersion        = '0.1.1'
 
     # Supported PSEditions
     CompatiblePSEditions = @('Core')
@@ -66,18 +66,10 @@
             # A URL to the main website for this project.
             ProjectUri   = 'https://github.com/johnsarie27/PS.GitHub'
 
-            # ReleaseNotes of this module
-            ReleaseNotes = @'
-v0.1.0 - Initial release. Ships four public functions:
-  * Invoke-GhApi        - gh api wrapper with pagination, silent-404, empty-204 short-circuit
-  * New-GhBody          - ScriptBlock wrapper that owns temp body file lifecycle end-to-end
-  * Test-GhAuthScope    - gh auth status preflight; throws with concrete remediation on miss
-  * Resolve-GhCommitSha - tag/branch/SHA -> commit SHA (avoids annotated-tag-object trap)
-
-Also ships one private helper (Invoke-Gh) that enforces preference isolation
-and string[] boundary normalization structurally. Tag-only release; not
-published to PSGallery in v0.1.0.
-'@
+            # Release notes are intentionally not embedded in the manifest.
+            # They are auto-generated per tag from merged PR labels via
+            # .github/release.yml. See:
+            # https://github.com/johnsarie27/PS.GitHub/releases
 
         } # End of PSData hashtable
 
