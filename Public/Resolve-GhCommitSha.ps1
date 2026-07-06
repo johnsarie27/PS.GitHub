@@ -61,13 +61,21 @@ function Resolve-GhCommitSha {
         for `actions/*` annotated releases), emits a warning naming both
         SHAs; returns the commit SHA regardless.
     .NOTES
-        Status: Stable
+        Status: Beta
         - Uses `Invoke-GhApi` internally. Inherits its silent-404 handling
           (for `-CrossCheck` against non-tag refs) and its cross-cutting
           rules (ADR-4, ADR-6).
         - The GitHub Docs page for the "Get a commit" endpoint documents
           that `{ref}` accepts either a commit SHA, a branch, or a tag:
           https://docs.github.com/rest/commits/commits#get-a-commit
+        - Graded `Beta` (from `Stable`) under
+          [ADR-8](../docs/adr/0008-determinism-vs-knowledge-criterion.md):
+          this function's primary value is *knowledge* (which endpoint to
+          use) rather than *determinism*. The endpoint-choice knowledge is
+          also documented in the `pwsh-cli-json` skill. Retained in v0.1.x
+          because no concrete misuse has been observed and the API surface
+          was advertised in v0.1.0 release notes. Removal is on the table
+          if a concrete misuse or maintenance burden surfaces.
     #>
     [CmdletBinding()]
     [OutputType([System.String])]

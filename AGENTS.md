@@ -6,7 +6,7 @@ skill file from scratch.
 
 **Read first:**
 
-- [`docs/adr/`](docs/adr/) — architecturally significant decisions (`0001` through `0007`). Start here for "why is it this way?" questions.
+- [`docs/adr/`](docs/adr/) — architecturally significant decisions (`0001` through `0008`). Start here for "why is it this way?" questions.
 - [Umbrella tracking issue #1](https://github.com/johnsarie27/PS.GitHub/issues/1) — historical: the design rationale that motivated the module (pain points, shape decisions, what was rejected and why). Closed 2026-07-02 when v0.1.0 shipped.
 
 ## Purpose
