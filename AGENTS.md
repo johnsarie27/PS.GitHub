@@ -34,6 +34,7 @@ string; endpoint shape is not something the caller has to remember.
 | `New-GhBody` | implemented (PR-C) | Authored-body handling. `-ScriptBlock` wrapper shape: writes body to a temp file, invokes the block with the path, cleans up in `finally` even on exception. Paragraph handling is convention-only per ADR-7. |
 | `Test-GhAuthScope` | implemented (PR-D) | Parses `gh auth status 2>&1` (via `Invoke-Gh`), asserts required OAuth scopes are present, emits the exact `gh auth refresh -h github.com -s <scope>` remediation on miss. Uses exact scope-list comparison (not substring regex) so `admin` cannot false-match `admin:org`. |
 | `Resolve-GhCommitSha` | implemented (PR-E) | Tag/branch/SHA → commit SHA via `GET /repos/{o}/{r}/commits/{ref}` (avoids the annotated-tag-object trap). Optional `-CrossCheck` warns on disagreement with `/git/refs/tags/{tag}`. |
+| `New-GhSignedCommit` | implemented (#19) | Creates a single GitHub-**signed** commit via the GraphQL `createCommitOnBranch` mutation (force-resets the head branch to the base tip first). Promoted from `PS-MCS/gh-org`'s `New-SignedCommitOnBranch`; decoupled from cwd (`-Addition` takes `Content`/`LiteralPath`), supports multiple `additions[]`/`deletions[]`, and pins UTF-8 via `New-GhBody` + `gh api graphql --input <file>`. REST calls route through `Invoke-GhApi`, the GraphQL call through `Invoke-Gh`. |
 
 ### Private helpers (dot-sourced, not exported)
 

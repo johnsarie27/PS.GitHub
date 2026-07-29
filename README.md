@@ -20,6 +20,7 @@ side effects that outlive the author's attention span.
 | Orphaned temp body files after `gh --body-file` writes | `New-GhBody` (`-ScriptBlock` wrapper — cleanup impossible to forget) |
 | Missing OAuth scopes surfacing as opaque HTTP 404s on `.github/workflows/*`, org-roles, or security-configuration writes | `Test-GhAuthScope` (preflight with exact remediation string on miss) |
 | Tag-object SHA vs. commit SHA confusion when pinning GitHub Actions | `Resolve-GhCommitSha` (`/commits/{ref}` by default; `-CrossCheck` warns on disagreement) |
+| Unsigned CI commits rejected by a verified-signature ruleset | `New-GhSignedCommit` (GitHub-signed commit via GraphQL `createCommitOnBranch`; single clean commit off the base tip) |
 | Native-command exit handling, silent 404 for optional resources, empty 204 short-circuit, pagination flatten, `string[]` boundary normalization | `Invoke-GhApi` (foundation wrapper used by the other three) |
 
 Explicit non-goals are documented in
@@ -72,7 +73,7 @@ In CI (GitHub Actions), the equivalent is:
 
 ## Quickstart
 
-Once `v0.1.0` is tagged, the four functions are usable like this:
+Once `v0.1.0` is tagged, the functions are usable like this:
 
 ```powershell
 # Wrapped gh api with silent-404 and pagination flatten.
@@ -95,6 +96,16 @@ Test-GhAuthScope -RequiredScope 'workflow'
 
 # Resolve a tag to a commit SHA for Actions pinning.
 $sha = Resolve-GhCommitSha -Owner actions -Repo checkout -Ref v6.0.3
+
+# Write a GitHub-signed commit (satisfies a verified-signature ruleset).
+$commit = @{
+    NameWithOwner = 'my-org/my-repo'
+    BaseBranch    = 'main'
+    HeadBranch    = 'automation/baseline'
+    Headline      = 'chore(baseline): refresh (auto)'
+    Addition      = @{ Path = 'baseline/data.json'; LiteralPath = './data.json' }
+}
+$oid = New-GhSignedCommit @commit
 ```
 
 ## Cross-cutting behavior
