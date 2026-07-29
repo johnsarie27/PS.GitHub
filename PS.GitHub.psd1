@@ -12,7 +12,7 @@
     # Major = significant changes, breaking changes or major new features
     # Minor = new functions or features
     # Build = bug fixes and minor updates
-    ModuleVersion        = '0.1.1'
+    ModuleVersion        = '0.2.0'
 
     # Supported PSEditions
     CompatiblePSEditions = @('Core')
@@ -38,6 +38,7 @@
     # Functions to export from this module. Populated per-PR as functions land.
     # v0.1.0 target: Invoke-GhApi, New-GhBody, Test-GhAuthScope, Resolve-GhCommitSha
     FunctionsToExport    = @(
+        'Get-GhTokenExpiration'
         'Invoke-GhApi'
         'New-GhBody'
         'New-GhSignedCommit'

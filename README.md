@@ -21,6 +21,7 @@ side effects that outlive the author's attention span.
 | Missing OAuth scopes surfacing as opaque HTTP 404s on `.github/workflows/*`, org-roles, or security-configuration writes | `Test-GhAuthScope` (preflight with exact remediation string on miss) |
 | Tag-object SHA vs. commit SHA confusion when pinning GitHub Actions | `Resolve-GhCommitSha` (`/commits/{ref}` by default; `-CrossCheck` warns on disagreement) |
 | Unsigned CI commits rejected by a verified-signature ruleset | `New-GhSignedCommit` (GitHub-signed commit via GraphQL `createCommitOnBranch`; single clean commit off the base tip) |
+| PATs silently expiring and breaking a workflow opaquely | `Get-GhTokenExpiration` (side-effect-free probe returning `{ HasExpiration; ExpiresAt; DaysRemaining }`) |
 | Native-command exit handling, silent 404 for optional resources, empty 204 short-circuit, pagination flatten, `string[]` boundary normalization | `Invoke-GhApi` (foundation wrapper used by the other three) |
 
 Explicit non-goals are documented in
@@ -106,6 +107,12 @@ $commit = @{
     Addition      = @{ Path = 'baseline/data.json'; LiteralPath = './data.json' }
 }
 $oid = New-GhSignedCommit @commit
+
+# Check the authenticated token's expiration (no side effects; caller decides).
+$exp = Get-GhTokenExpiration
+if ($exp.HasExpiration -and $exp.DaysRemaining -le 30) {
+    Write-Warning ('Token expires in {0} days (on {1:yyyy-MM-dd}).' -f $exp.DaysRemaining, $exp.ExpiresAt)
+}
 ```
 
 ## Cross-cutting behavior
