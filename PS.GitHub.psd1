@@ -40,6 +40,7 @@
     FunctionsToExport    = @(
         'Invoke-GhApi'
         'New-GhBody'
+        'New-GhSignedCommit'
         'Resolve-GhCommitSha'
         'Test-GhAuthScope'
     )
