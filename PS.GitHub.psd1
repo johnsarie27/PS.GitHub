@@ -38,6 +38,7 @@
     # Functions to export from this module. Populated per-PR as functions land.
     # v0.1.0 target: Invoke-GhApi, New-GhBody, Test-GhAuthScope, Resolve-GhCommitSha
     FunctionsToExport    = @(
+        'Get-GhTokenExpiration'
         'Invoke-GhApi'
         'New-GhBody'
         'New-GhSignedCommit'
