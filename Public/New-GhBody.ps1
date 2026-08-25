@@ -157,7 +157,10 @@ function New-GhBody {
             $names = $usingRefs.SubExpression.FindAll(
                 { $args[0] -is [System.Management.Automation.Language.VariableExpressionAst] }, $true
             ).VariablePath.UserPath | Sort-Object -Unique
-            Write-Error -Message ('ScriptBlock contains $using: reference(s): {0}. The block runs in the caller''s own session state (not a remoting context), so reference these variables directly, or pass them via -ArgumentList.' -f ($names -join ', ')) -ErrorAction Stop
+            $usingMessageTemplate = 'ScriptBlock contains $using: reference(s): {0}. The block runs in the ' +
+                'caller''s own session state (not a remoting context), so reference these variables ' +
+                'directly, or pass them via -ArgumentList.'
+            Write-Error -Message ($usingMessageTemplate -f ($names -join ', ')) -ErrorAction Stop
         }
 
         # ADR-7: no reflow, no rejection. Join string[] with `n verbatim.
