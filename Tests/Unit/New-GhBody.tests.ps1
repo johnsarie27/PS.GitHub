@@ -230,6 +230,14 @@ Describe -Name 'New-GhBody' -Fixture {
             $usingLabel = 'not-a-using-expression'
             { New-GhBody -Text 'x' -ScriptBlock { param($p) $usingLabel } } | Should -Not -Throw
         }
+        It -Name 'names the root variable for a $using: reference with member access' -Test {
+            $sb = { param($p) gh issue comment 1 --body $using:obj.Property --body-file $p }
+            { New-GhBody -Text 'x' -ScriptBlock $sb } | Should -Throw -ExpectedMessage '*obj*'
+        }
+        It -Name 'names the root variable for a $using: reference with index access' -Test {
+            $sb = { param($p) gh issue comment 1 --body $using:hash['key'] --body-file $p }
+            { New-GhBody -Text 'x' -ScriptBlock $sb } | Should -Throw -ExpectedMessage '*hash*'
+        }
     }
     Context -Name 'SupportsShouldProcess (-WhatIf)' -Fixture {
         It -Name 'declares SupportsShouldProcess with ConfirmImpact = Low' -Test {

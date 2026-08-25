@@ -148,8 +148,16 @@ function New-GhBody {
             { $args[0] -is [System.Management.Automation.Language.UsingExpressionAst] }, $true)
 
         if ($usingRefs) {
-            $names = ($usingRefs.SubExpression.VariablePath.UserPath | Sort-Object -Unique) -join ', '
-            Write-Error -Message ('ScriptBlock contains $using: reference(s): {0}. The block runs in the caller''s own session state (not a remoting context), so reference these variables directly, or pass them via -ArgumentList.' -f $names) -ErrorAction Stop
+            # SubExpression is only a bare VariableExpressionAst for the
+            # simple `$using:var` form. For `$using:obj.Property` or
+            # `$using:hash['key']`, the using expression wraps just the
+            # root variable and a member/index access sits on top of it,
+            # so SubExpression is a MemberExpressionAst/IndexExpressionAst
+            # instead -- walk it to find the underlying variable name(s).
+            $names = $usingRefs.SubExpression.FindAll(
+                { $args[0] -is [System.Management.Automation.Language.VariableExpressionAst] }, $true
+            ).VariablePath.UserPath | Sort-Object -Unique
+            Write-Error -Message ('ScriptBlock contains $using: reference(s): {0}. The block runs in the caller''s own session state (not a remoting context), so reference these variables directly, or pass them via -ArgumentList.' -f ($names -join ', ')) -ErrorAction Stop
         }
 
         # ADR-7: no reflow, no rejection. Join string[] with `n verbatim.
