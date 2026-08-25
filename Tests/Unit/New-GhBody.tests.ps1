@@ -180,6 +180,57 @@ Describe -Name 'New-GhBody' -Fixture {
             Test-Path -LiteralPath $capture.Path | Should -BeFalse
         }
     }
+    Context -Name '-ArgumentList' -Fixture {
+        It -Name 'invokes the ScriptBlock with the temp path plus -ArgumentList values' -Test {
+            $observed = New-GhBody -Text 'x' -ArgumentList 42, 'label' -ScriptBlock {
+                param($path, $issueNumber, $label)
+                [PSCustomObject] @{
+                    HasPath     = -not [string]::IsNullOrEmpty($path)
+                    IssueNumber = $issueNumber
+                    Label       = $label
+                }
+            }
+            $observed.HasPath | Should -BeTrue
+            $observed.IssueNumber | Should -Be 42
+            $observed.Label | Should -Be 'label'
+        }
+        It -Name 'invokes the ScriptBlock with just the temp path when -ArgumentList is omitted (backward compatible)' -Test {
+            $observed = New-GhBody -Text 'x' -ScriptBlock {
+                param($path)
+                $args.Count
+            }
+            $observed | Should -Be 0
+        }
+    }
+    Context -Name '$using: guard (ADR-9)' -Fixture {
+        It -Name 'rejects a ScriptBlock referencing $using: and names the offending variable' -Test {
+            $someVar = 'value'
+            $sb = { param($p) gh issue comment 1 --body $using:someVar --body-file $p }
+            { New-GhBody -Text 'x' -ScriptBlock $sb } | Should -Throw -ExpectedMessage '*someVar*'
+        }
+        It -Name 'does not create a temp file when the ScriptBlock is rejected for $using:' -Test {
+            $tempDir = [System.IO.Path]::GetTempPath()
+            $before = @(Get-ChildItem -LiteralPath $tempDir -File -ErrorAction SilentlyContinue).Count
+
+            $sb = { param($p) $using:someVar }
+            try {
+                New-GhBody -Text 'x' -ScriptBlock $sb
+            }
+            catch {
+                # expected
+            }
+
+            $after = @(Get-ChildItem -LiteralPath $tempDir -File -ErrorAction SilentlyContinue).Count
+            ($after - $before) | Should -BeLessOrEqual 0
+        }
+        It -Name 'does not throw for a clean ScriptBlock with no $using: reference' -Test {
+            { New-GhBody -Text 'x' -ScriptBlock { param($p) $p } } | Should -Not -Throw
+        }
+        It -Name 'allows a plain variable named similarly to "using" (no false positive)' -Test {
+            $usingLabel = 'not-a-using-expression'
+            { New-GhBody -Text 'x' -ScriptBlock { param($p) $usingLabel } } | Should -Not -Throw
+        }
+    }
     Context -Name 'SupportsShouldProcess (-WhatIf)' -Fixture {
         It -Name 'declares SupportsShouldProcess with ConfirmImpact = Low' -Test {
             $cmd = Get-Command -Name 'New-GhBody'

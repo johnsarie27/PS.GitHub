@@ -14,17 +14,22 @@ function New-GhBody {
              is joined with `` `n ``).
           2. Writes the normalized body to a fresh temp file under
              `[System.IO.Path]::GetTempPath()`.
-          3. Invokes the caller's `-ScriptBlock`, passing the temp-file
-             path as its sole positional argument.
-          4. **Always** deletes the temp file in `finally`, even if the
+          3. Rejects a `-ScriptBlock` containing a `$using:` reference
+             before any temp file is written (invalid outside remoting
+             contexts; see `.PARAMETER ScriptBlock`).
+          4. Invokes the caller's `-ScriptBlock`, passing the temp-file
+             path as its first positional argument, followed by any
+             `-ArgumentList` values supplied.
+          5. **Always** deletes the temp file in `finally`, even if the
              `ScriptBlock` throws. The caller cannot leak the file.
-          5. Returns whatever the `ScriptBlock` returns (transparent
+          6. Returns whatever the `ScriptBlock` returns (transparent
              passthrough).
 
         See [ADR-2](../docs/adr/0002-scriptblock-wrapper-for-body-lifecycle.md)
-        for the wrapper-shape decision and [ADR-7](../docs/adr/0007-new-ghbody-paragraph-convention.md)
+        for the wrapper-shape decision, [ADR-7](../docs/adr/0007-new-ghbody-paragraph-convention.md)
         for the paragraph-handling behavior (convention only; no runtime
-        reflow or rejection).
+        reflow or rejection), and [ADR-9](../docs/adr/0009-new-ghbody-using-guard-and-argumentlist.md)
+        for the `$using:` guard and `-ArgumentList`.
 
         Caller convention: prefer passing `-Text` as a `string[]` with one
         paragraph per element and empty strings for paragraph breaks.
@@ -37,9 +42,23 @@ function New-GhBody {
         empty-string element produces a blank line, encoding a paragraph
         break in GitHub's rendered output.
     .PARAMETER ScriptBlock
-        The block to invoke with the temp-file path. Runs in the caller's
-        session state (not `InvokeReturnAsIs`). The single positional
-        argument is the temp-file path as a `[string]`.
+        The block to invoke with the temp-file path. The block runs in the
+        caller's session state (not a new scope, not a remoting session),
+        so caller variables -- including loop variables -- are already
+        directly accessible inside it by name. Do not use `$using:`: that
+        syntax is valid only in remoting contexts (`Invoke-Command` against
+        a session, `Start-Job`, `InlineScript`) and fails at invoke time
+        here with a non-terminating error. `New-GhBody` rejects a
+        `ScriptBlock` containing `$using:` before any temp file is written;
+        see `-ArgumentList` for the sanctioned way to pass values in
+        explicitly (e.g. from inside a `foreach`, where a plain variable
+        reference can also be captured with `.GetNewClosure()`).
+    .PARAMETER ArgumentList
+        Optional extra positional arguments appended after the temp-file
+        path when invoking `-ScriptBlock`. Use this to pass loop or context
+        variables into the block explicitly instead of relying on closure
+        capture or (incorrectly) `$using:`. Additive: omit it and the block
+        is invoked with just the temp-file path, as before.
     .INPUTS
         None.
     .OUTPUTS
@@ -67,6 +86,17 @@ function New-GhBody {
         Runs multiple `gh` calls against the same body file; both share
         the same temp file which is deleted once when the `ScriptBlock`
         returns.
+    .EXAMPLE
+        PS C:\> foreach ($n in $ids) {
+        >>     New-GhBody -Text $body -ArgumentList $n -ScriptBlock {
+        >>         param($path, $issueNumber)
+        >>         gh issue comment $issueNumber --body-file $path
+        >>     }
+        >> }
+
+        Passes the loop variable `$n` in explicitly via `-ArgumentList`
+        rather than relying on `.GetNewClosure()` or (incorrectly)
+        `$using:`.
     .NOTES
         Status: Stable
         - Temp-file lifecycle is guaranteed by the `try` / `finally` inside
@@ -77,6 +107,10 @@ function New-GhBody {
         - No paragraph-per-line reflow or rejection (ADR-7). Caller is
           responsible for authoring the body in the shape they want
           rendered.
+        - `$using:` is invalid inside `-ScriptBlock` (it is not a remoting
+          context) and is rejected up front, before any temp file is
+          written. Reference caller variables directly, or pass them via
+          `-ArgumentList`. See ADR-9.
         - `SupportsShouldProcess` with `ConfirmImpact = 'Low'`: `-WhatIf`
           skips the whole operation (no temp file, no ScriptBlock invoked)
           and prints a "What if" line; `-Confirm` never fires unless the
@@ -93,12 +127,31 @@ function New-GhBody {
 
         [Parameter(Mandatory, HelpMessage = 'ScriptBlock invoked with the temp-file path as its single positional argument.')]
         [ValidateNotNull()]
-        [System.Management.Automation.ScriptBlock] $ScriptBlock
+        [System.Management.Automation.ScriptBlock] $ScriptBlock,
+
+        [Parameter(HelpMessage = 'Extra positional arguments appended after the temp-file path when invoking -ScriptBlock.')]
+        [System.Object[]] $ArgumentList = @()
     )
     Begin {
         Write-Verbose -Message ('Starting {0}' -f $MyInvocation.MyCommand)
     }
     Process {
+        # $using: is only meaningful in remoting contexts (Invoke-Command
+        # against a session, Start-Job, InlineScript). -ScriptBlock runs
+        # in-process in the caller's own session state via `&`, so a
+        # $using: reference here parses fine but fails at invoke time with
+        # a non-terminating error -- easy to miss unless the caller has
+        # $ErrorActionPreference = 'Stop'. Reject it up front, before the
+        # temp file is created, and name the offending variable(s) so the
+        # fix is obvious. See issues #16 and #23, ADR-9.
+        $usingRefs = $ScriptBlock.Ast.FindAll(
+            { $args[0] -is [System.Management.Automation.Language.UsingExpressionAst] }, $true)
+
+        if ($usingRefs) {
+            $names = ($usingRefs.SubExpression.VariablePath.UserPath | Sort-Object -Unique) -join ', '
+            Write-Error -Message ('ScriptBlock contains $using: reference(s): {0}. The block runs in the caller''s own session state (not a remoting context), so reference these variables directly, or pass them via -ArgumentList.' -f $names) -ErrorAction Stop
+        }
+
         # ADR-7: no reflow, no rejection. Join string[] with `n verbatim.
         # Callers wanting paragraph-per-line semantics author their input
         # in that shape; the API does not enforce it.
@@ -126,9 +179,10 @@ function New-GhBody {
             Set-Content -LiteralPath $tempPath -Value $normalized -Encoding utf8 -NoNewline
 
             # Invoke the caller's ScriptBlock with the temp path as its
-            # sole positional argument. Return the block's output
+            # first positional argument, followed by any -ArgumentList
+            # values the caller supplied. Return the block's output
             # transparently.
-            & $ScriptBlock $tempPath
+            & $ScriptBlock $tempPath @ArgumentList
         }
         finally {
             # Guaranteed cleanup, even if the ScriptBlock throws.
