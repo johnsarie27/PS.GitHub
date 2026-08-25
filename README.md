@@ -92,6 +92,17 @@ New-GhBody -Text $body -ScriptBlock {
     gh issue create --repo my-org/my-repo --title 'Example' --body-file $path
 }
 
+# Caller variables are already in scope inside -ScriptBlock -- do not use
+# $using:, which is only valid in remoting contexts and fails at invoke
+# time here. Pass loop/context variables in explicitly via -ArgumentList
+# instead of relying on closure capture:
+foreach ($n in $issueNumbers) {
+    New-GhBody -Text $body -ArgumentList $n -ScriptBlock {
+        param($path, $issueNumber)
+        gh issue comment $issueNumber --body-file $path
+    }
+}
+
 # Preflight OAuth scope before a write that would 404 without it.
 Test-GhAuthScope -RequiredScope 'workflow'
 
