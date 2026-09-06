@@ -2,48 +2,19 @@ name: release
 run-name: release ${{ github.ref_name }}
 
 on:
-    push:
-        tags:
-            - "v[0-9]+.[0-9]+.[0-9]+" # v0.1.0
-            #- "v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+" # v0.1.0-rc01
-
-permissions:
-    contents: write # required to create the GitHub Release
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+" # v0.1.0
+      #- "v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+" # v0.1.0-rc01
 
 concurrency:
-    group: release-${{ github.ref }}
-    cancel-in-progress: false
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-    release:
-        runs-on: ubuntu-latest
-        timeout-minutes: 15
-        steps:
-            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-            - shell: pwsh # install dependencies (Pester, psake, PSScriptAnalyzer)
-              run: ./Build/build.ps1 -ResolveDependency -TaskList 'Init'
-
-            - shell: pwsh # stage module
-              run: ./Build/build.ps1 -TaskList 'CombineFunctionsAndStage'
-
-            - shell: pwsh # psscriptanalyzer
-              run: ./Build/build.ps1 -TaskList 'Analyze'
-
-            - shell: pwsh # pester
-              run: ./Build/build.ps1 -TaskList 'Test'
-
-            - shell: pwsh # compress staged module into Artifacts/PS.GitHub-vX.Y.Z.zip
-              run: ./Build/build.ps1 -TaskList 'CreateBuildArtifact'
-
-            - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-              with:
-                  name: PS.GitHub-${{ github.ref_name }}
-                  path: Artifacts/*.zip
-                  if-no-files-found: error
-
-            - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-              with:
-                  token: ${{ secrets.GITHUB_TOKEN }}
-                  generate_release_notes: true
-                  files: Artifacts/*.zip
+  release:
+    uses: jjohns-dev/pwsh-module-ci/.github/workflows/release.yml@v1
+    with:
+      artifact-name: 'PS.GitHub-${{ github.ref_name }}'
+    permissions:
+      contents: write
