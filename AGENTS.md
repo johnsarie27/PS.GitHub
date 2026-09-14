@@ -6,7 +6,7 @@ skill file from scratch.
 
 **Read first:**
 
-- [`docs/adr/`](docs/adr/) — architecturally significant decisions (`0001` through `0008`). Start here for "why is it this way?" questions.
+- [`docs/adr/`](docs/adr/) — architecturally significant decisions. Start here for "why is it this way?" questions.
 - [Umbrella tracking issue #1](https://github.com/johnsarie27/PS.GitHub/issues/1) — historical: the design rationale that motivated the module (pain points, shape decisions, what was rejected and why). Closed 2026-07-02 when v0.1.0 shipped.
 
 ## Purpose
@@ -34,7 +34,7 @@ string; endpoint shape is not something the caller has to remember.
 | `New-GhBody` | implemented (PR-C) | Authored-body handling. `-ScriptBlock` wrapper shape: writes body to a temp file, invokes the block with the path (plus any `-ArgumentList` values), cleans up in `finally` even on exception. Paragraph handling is convention-only per ADR-7. Rejects `$using:` in `-ScriptBlock` before writing the temp file; caller variables are already in scope directly (ADR-9). |
 | `Test-GhAuthScope` | implemented (PR-D) | Parses `gh auth status 2>&1` (via `Invoke-Gh`), asserts required OAuth scopes are present, emits the exact `gh auth refresh -h github.com -s <scope>` remediation on miss. Uses exact scope-list comparison (not substring regex) so `admin` cannot false-match `admin:org`. |
 | `Resolve-GhCommitSha` | implemented (PR-E) | Tag/branch/SHA → commit SHA via `GET /repos/{o}/{r}/commits/{ref}` (avoids the annotated-tag-object trap). Optional `-CrossCheck` warns on disagreement with `/git/refs/tags/{tag}`. |
-| `New-GhSignedCommit` | implemented (#19) | Creates a single GitHub-**signed** commit via the GraphQL `createCommitOnBranch` mutation (force-resets the head branch to the base tip first). Promoted from `PS-MCS/gh-org`'s `New-SignedCommitOnBranch`; decoupled from cwd (`-Addition` takes `Content`/`LiteralPath`), supports multiple `additions[]`/`deletions[]`, and pins UTF-8 via `New-GhBody` + `gh api graphql --input <file>`. REST calls route through `Invoke-GhApi`, the GraphQL call through `Invoke-Gh`. |
+| `New-GhSignedCommit` | implemented (#19) | Creates a single GitHub-**signed** commit via the GraphQL `createCommitOnBranch` mutation. **Replaces** the head branch with one commit off the base tip; prior commits on it are discarded. The commit is staged on a throwaway `ps-github/tmp/<guid>` ref and the head branch is then moved to it in a single ref update, so the head branch is never momentarily equal to base and no open PR is auto-closed (ADR-10, #29). Promoted from `PS-MCS/gh-org`'s `New-SignedCommitOnBranch`; decoupled from cwd (`-Addition` takes `Content`/`LiteralPath`), supports multiple `additions[]`/`deletions[]`, and pins UTF-8 via `New-GhBody` + `gh api graphql --input <file>`. REST calls route through `Invoke-GhApi`, the GraphQL call through `Invoke-Gh`. |
 | `Get-GhTokenExpiration` | implemented (#20) | Probes `gh api /user --include`, parses the `github-authentication-token-expiration` header, and returns a side-effect-free object `{ HasExpiration; ExpiresAt; DaysRemaining }`. Deterministic core split out of `PS-MCS/gh-org`'s `Test-PatExpiration`; the CI presentation (`Write-Warning` / `GITHUB_STEP_SUMMARY` / `exit 0`) deliberately stays in gh-org. Throws on probe failure or an unparseable header; an absent header is `HasExpiration = $false`. |
 
 ### Private helpers (dot-sourced, not exported)

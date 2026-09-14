@@ -2,12 +2,16 @@
 
 # Tests for Public/New-GhSignedCommit.ps1.
 #
-# Approach: mock the REST layer (`Invoke-GhApi`) for the base-ref read,
-# head-ref existence probe, and the branch create/reset, and mock the
-# private `Invoke-Gh` for the GraphQL createCommitOnBranch call. New-GhBody
-# runs for real: it writes the payload to a temp file and invokes the
-# ScriptBlock, so the Invoke-Gh mock can read that file back to assert the
-# exact payload shape (base64 encoding, expectedHeadOid, fileChanges).
+# Approach: mock the REST layer (`Invoke-GhApi`) for the base-ref read, the
+# head-ref existence probe, the throwaway-ref create/delete, and the
+# head-branch move, and mock the private `Invoke-Gh` for the GraphQL
+# createCommitOnBranch call. New-GhBody runs for real: it writes the payload
+# to a temp file and invokes the ScriptBlock, so the Invoke-Gh mock can read
+# that file back to assert the exact payload shape (base64 encoding,
+# expectedHeadOid, fileChanges).
+#
+# Read paths use `git/ref/heads/...` (singular) and write paths use
+# `git/refs/...` (plural), so path-based ParameterFilters do not collide.
 
 BeforeAll {
     $script:ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -24,9 +28,61 @@ AfterAll {
 }
 
 Describe -Name 'New-GhSignedCommit' -Fixture {
-    Context -Name 'Branch positioning' -Fixture {
-        It -Name 'force-resets an existing head branch (PATCH) and returns the commit oid' -Test {
+    Context -Name 'Atomic ref move (ADR-10)' -Fixture {
+        It -Name 'stages the commit on a throwaway ref created at the base SHA' -Test {
             InModuleScope 'PS.GitHub' {
+                Mock -CommandName Invoke-GhApi -MockWith { $null }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/main' } -MockWith {
+                    [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'basebasebasebasebasebasebasebasebasebase' } }
+                }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/automation/x' } -MockWith {
+                    [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'oldoldoldoldoldoldoldoldoldoldoldoldoldo' } }
+                }
+                Mock -CommandName Invoke-Gh -MockWith {
+                    $script:captured = Get-Content -LiteralPath $Arguments[3] -Raw | ConvertFrom-Json
+                    [PSCustomObject] @{ ExitCode = 0; Output = '{"data":{"createCommitOnBranch":{"commit":{"oid":"newcommitoid1234"}}}}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
+                }
+
+                New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha' } | Out-Null
+
+                Should -Invoke -CommandName Invoke-GhApi -Times 1 -Exactly -ParameterFilter {
+                    ($Path -eq 'repos/o/r/git/refs') -and
+                    (($Body -join '') -match 'refs/heads/ps-github/tmp/[0-9a-f]{32}') -and
+                    (($Body -join '') -match 'basebasebasebasebasebasebasebasebasebase')
+                }
+                # The mutation targets the throwaway ref, never HeadBranch.
+                $script:captured.variables.input.branch.branchName | Should -BeLike 'ps-github/tmp/*'
+            }
+        }
+        It -Name 'never points the head branch at the base SHA (regression: issue #29 PR auto-close)' -Test {
+            InModuleScope 'PS.GitHub' {
+                $script:baseSha = 'basebasebasebasebasebasebasebasebasebase'
+                Mock -CommandName Invoke-GhApi -MockWith { $null }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/main' } -MockWith {
+                    [PSCustomObject] @{ object = [PSCustomObject] @{ sha = $baseSha } }
+                }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/automation/x' } -MockWith {
+                    [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'oldoldoldoldoldoldoldoldoldoldoldoldoldo' } }
+                }
+                Mock -CommandName Invoke-Gh -MockWith {
+                    [PSCustomObject] @{ ExitCode = 0; Output = '{"data":{"createCommitOnBranch":{"commit":{"oid":"newcommitoid1234"}}}}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
+                }
+
+                New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha' } | Out-Null
+
+                # No write to the head ref may ever carry the base SHA: that
+                # is the zero-commits-ahead state that closes an open PR.
+                Should -Invoke -CommandName Invoke-GhApi -Times 0 -Exactly -ParameterFilter {
+                    ($Path -eq 'repos/o/r/git/refs/heads/automation/x') -and (($Body -join '') -match 'basebase')
+                }
+                Should -Invoke -CommandName Invoke-GhApi -Times 0 -Exactly -ParameterFilter {
+                    ($Path -eq 'repos/o/r/git/refs') -and (($Body -join '') -match 'refs/heads/automation/x')
+                }
+            }
+        }
+        It -Name 'moves an existing head branch to the new commit in one forced PATCH' -Test {
+            InModuleScope 'PS.GitHub' {
+                Mock -CommandName Invoke-GhApi -MockWith { $null }
                 Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/main' } -MockWith {
                     [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'basebasebasebasebasebasebasebasebasebase' } }
                 }
@@ -34,8 +90,6 @@ Describe -Name 'New-GhSignedCommit' -Fixture {
                 Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/automation/x' } -MockWith {
                     [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'oldoldoldoldoldoldoldoldoldoldoldoldoldo' } }
                 }
-                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -eq 'PATCH' } -MockWith { $null }
-                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -eq 'POST' } -MockWith { $null }
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 0; Output = '{"data":{"createCommitOnBranch":{"commit":{"oid":"newcommitoid1234"}}}}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
                 }
@@ -43,36 +97,43 @@ Describe -Name 'New-GhSignedCommit' -Fixture {
                 $oid = New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha' }
 
                 $oid | Should -Be 'newcommitoid1234'
-                Should -Invoke -CommandName Invoke-GhApi -Times 1 -Exactly -ParameterFilter { $Method -eq 'PATCH' }
-                Should -Invoke -CommandName Invoke-GhApi -Times 0 -Exactly -ParameterFilter { $Method -eq 'POST' }
+                Should -Invoke -CommandName Invoke-GhApi -Times 1 -Exactly -ParameterFilter {
+                    ($Method -eq 'PATCH') -and
+                    ($Path -eq 'repos/o/r/git/refs/heads/automation/x') -and
+                    (($Body -join '') -match 'newcommitoid1234') -and
+                    (($Body -join '') -match '"force":\s*true')
+                }
             }
         }
-        It -Name 'creates the head branch (POST) when it does not exist' -Test {
+        It -Name 'creates an absent head branch directly at the new commit' -Test {
             InModuleScope 'PS.GitHub' {
+                Mock -CommandName Invoke-GhApi -MockWith { $null }
                 Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/main' } -MockWith {
                     [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'basebasebasebasebasebasebasebasebasebase' } }
                 }
                 # Head branch absent -> probe returns $null -> POST path.
                 Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/automation/x' } -MockWith { $null }
-                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -eq 'PATCH' } -MockWith { $null }
-                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -eq 'POST' } -MockWith { $null }
                 Mock -CommandName Invoke-Gh -MockWith {
-                    [PSCustomObject] @{ ExitCode = 0; Output = '{"data":{"createCommitOnBranch":{"commit":{"oid":"oid"}}}}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
+                    [PSCustomObject] @{ ExitCode = 0; Output = '{"data":{"createCommitOnBranch":{"commit":{"oid":"newcommitoid1234"}}}}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
                 }
 
                 New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha' } | Out-Null
 
-                Should -Invoke -CommandName Invoke-GhApi -Times 1 -Exactly -ParameterFilter { $Method -eq 'POST' }
+                Should -Invoke -CommandName Invoke-GhApi -Times 1 -Exactly -ParameterFilter {
+                    ($Method -eq 'POST') -and
+                    ($Path -eq 'repos/o/r/git/refs') -and
+                    (($Body -join '') -match 'refs/heads/automation/x') -and
+                    (($Body -join '') -match 'newcommitoid1234')
+                }
                 Should -Invoke -CommandName Invoke-GhApi -Times 0 -Exactly -ParameterFilter { $Method -eq 'PATCH' }
             }
         }
         It -Name 'passes -AllowNotFound on the head-ref existence probe' -Test {
             InModuleScope 'PS.GitHub' {
+                Mock -CommandName Invoke-GhApi -MockWith { $null }
                 Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/main' } -MockWith {
                     [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'basebasebasebasebasebasebasebasebasebase' } }
                 }
-                Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/automation/x' } -MockWith { $null }
-                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -eq 'POST' } -MockWith { $null }
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 0; Output = '{"data":{"createCommitOnBranch":{"commit":{"oid":"oid"}}}}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
                 }
@@ -82,6 +143,80 @@ Describe -Name 'New-GhSignedCommit' -Fixture {
                 Should -Invoke -CommandName Invoke-GhApi -Times 1 -Exactly -ParameterFilter {
                     ($Path -eq 'repos/o/r/git/ref/heads/automation/x') -and $AllowNotFound
                 }
+            }
+        }
+    }
+    Context -Name 'Throwaway ref cleanup (ADR-10)' -Fixture {
+        It -Name 'deletes the throwaway ref after a successful commit' -Test {
+            InModuleScope 'PS.GitHub' {
+                Mock -CommandName Invoke-GhApi -MockWith { $null }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/main' } -MockWith {
+                    [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'basebasebasebasebasebasebasebasebasebase' } }
+                }
+                Mock -CommandName Invoke-Gh -MockWith {
+                    [PSCustomObject] @{ ExitCode = 0; Output = '{"data":{"createCommitOnBranch":{"commit":{"oid":"oid"}}}}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
+                }
+
+                New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha' } | Out-Null
+
+                Should -Invoke -CommandName Invoke-GhApi -Times 1 -Exactly -ParameterFilter {
+                    ($Method -eq 'DELETE') -and ($Path -match '^repos/o/r/git/refs/heads/ps-github/tmp/[0-9a-f]{32}$')
+                }
+            }
+        }
+        It -Name 'deletes the throwaway ref when the commit step fails' -Test {
+            InModuleScope 'PS.GitHub' {
+                Mock -CommandName Invoke-GhApi -MockWith { $null }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/main' } -MockWith {
+                    [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'basebasebasebasebasebasebasebasebasebase' } }
+                }
+                Mock -CommandName Invoke-Gh -MockWith {
+                    [PSCustomObject] @{ ExitCode = 1; Output = 'gh: some failure'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
+                }
+
+                { New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha' } } | Should -Throw
+
+                Should -Invoke -CommandName Invoke-GhApi -Times 1 -Exactly -ParameterFilter {
+                    ($Method -eq 'DELETE') -and ($Path -match '^repos/o/r/git/refs/heads/ps-github/tmp/')
+                }
+            }
+        }
+        It -Name 'deletes the throwaway ref when the head-branch move fails' -Test {
+            InModuleScope 'PS.GitHub' {
+                Mock -CommandName Invoke-GhApi -MockWith { $null }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/main' } -MockWith {
+                    [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'basebasebasebasebasebasebasebasebasebase' } }
+                }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/automation/x' } -MockWith {
+                    [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'oldoldoldoldoldoldoldoldoldoldoldoldoldo' } }
+                }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -eq 'PATCH' } -MockWith { throw 'ref update rejected' }
+                Mock -CommandName Invoke-Gh -MockWith {
+                    [PSCustomObject] @{ ExitCode = 0; Output = '{"data":{"createCommitOnBranch":{"commit":{"oid":"oid"}}}}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
+                }
+
+                { New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha' } } |
+                Should -Throw -ExpectedMessage '*ref update rejected*'
+
+                Should -Invoke -CommandName Invoke-GhApi -Times 1 -Exactly -ParameterFilter {
+                    ($Method -eq 'DELETE') -and ($Path -match '^repos/o/r/git/refs/heads/ps-github/tmp/')
+                }
+            }
+        }
+        It -Name 'warns rather than masking the original error when cleanup fails' -Test {
+            InModuleScope 'PS.GitHub' {
+                Mock -CommandName Invoke-GhApi -MockWith { $null }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -eq 'repos/o/r/git/ref/heads/main' } -MockWith {
+                    [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'basebasebasebasebasebasebasebasebasebase' } }
+                }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -eq 'DELETE' } -MockWith { throw 'ref delete rejected' }
+                Mock -CommandName Invoke-Gh -MockWith {
+                    [PSCustomObject] @{ ExitCode = 0; Output = '{"data":null,"errors":[{"message":"Ref update failed"}]}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
+                }
+
+                # The GraphQL error survives; the cleanup failure does not replace it.
+                { New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha' } -WarningAction SilentlyContinue } |
+                Should -Throw -ExpectedMessage '*Ref update failed*'
             }
         }
     }
@@ -95,7 +230,7 @@ Describe -Name 'New-GhSignedCommit' -Fixture {
                 Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -like '*git/ref/heads/automation/x' } -MockWith {
                     [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'oldoldoldoldoldoldoldoldoldoldoldoldoldo' } }
                 }
-                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -in @('PATCH', 'POST') } -MockWith { $null }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -in @('PATCH', 'POST', 'DELETE') } -MockWith { $null }
                 # Read the payload New-GhBody wrote to the temp file (still on
                 # disk during the ScriptBlock) and stash it for assertions.
                 Mock -CommandName Invoke-Gh -MockWith {
@@ -111,7 +246,7 @@ Describe -Name 'New-GhSignedCommit' -Fixture {
                 $inputObj = $script:captured.variables.input
                 $inputObj.expectedHeadOid | Should -Be $baseSha
                 $inputObj.branch.repositoryNameWithOwner | Should -Be 'o/r'
-                $inputObj.branch.branchName | Should -Be 'automation/x'
+                $inputObj.branch.branchName | Should -BeLike 'ps-github/tmp/*'
                 $inputObj.message.headline | Should -Be $headline
                 $expectedB64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes('alpha'))
                 $inputObj.fileChanges.additions[0].path | Should -Be 'a.txt'
@@ -126,7 +261,7 @@ Describe -Name 'New-GhSignedCommit' -Fixture {
                 Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -like '*git/ref/heads/automation/x' } -MockWith {
                     [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'oldoldoldoldoldoldoldoldoldoldoldoldoldo' } }
                 }
-                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -in @('PATCH', 'POST') } -MockWith { $null }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -in @('PATCH', 'POST', 'DELETE') } -MockWith { $null }
                 Mock -CommandName Invoke-Gh -MockWith {
                     $script:captured = Get-Content -LiteralPath $Arguments[3] -Raw | ConvertFrom-Json
                     [PSCustomObject] @{ ExitCode = 0; Output = '{"data":{"createCommitOnBranch":{"commit":{"oid":"oid"}}}}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
@@ -156,7 +291,7 @@ Describe -Name 'New-GhSignedCommit' -Fixture {
                 Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -like '*git/ref/heads/automation/x' } -MockWith {
                     [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'oldoldoldoldoldoldoldoldoldoldoldoldoldo' } }
                 }
-                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -in @('PATCH', 'POST') } -MockWith { $null }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -in @('PATCH', 'POST', 'DELETE') } -MockWith { $null }
                 Mock -CommandName Invoke-Gh -MockWith {
                     $script:captured = Get-Content -LiteralPath $Arguments[3] -Raw | ConvertFrom-Json
                     [PSCustomObject] @{ ExitCode = 0; Output = '{"data":{"createCommitOnBranch":{"commit":{"oid":"oid"}}}}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
@@ -178,13 +313,13 @@ Describe -Name 'New-GhSignedCommit' -Fixture {
                 Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -like '*git/ref/heads/automation/x' } -MockWith {
                     [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'oldoldoldoldoldoldoldoldoldoldoldoldoldo' } }
                 }
-                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -in @('PATCH', 'POST') } -MockWith { $null }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -in @('PATCH', 'POST', 'DELETE') } -MockWith { $null }
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 0; Output = '{"data":null,"errors":[{"message":"Ref update failed"}]}'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
                 }
 
                 { New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha' } } |
-                    Should -Throw -ExpectedMessage '*Ref update failed*'
+                Should -Throw -ExpectedMessage '*Ref update failed*'
             }
         }
         It -Name 'throws when the GraphQL call exits non-zero' -Test {
@@ -195,13 +330,13 @@ Describe -Name 'New-GhSignedCommit' -Fixture {
                 Mock -CommandName Invoke-GhApi -ParameterFilter { $Path -like '*git/ref/heads/automation/x' } -MockWith {
                     [PSCustomObject] @{ object = [PSCustomObject] @{ sha = 'oldoldoldoldoldoldoldoldoldoldoldoldoldo' } }
                 }
-                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -in @('PATCH', 'POST') } -MockWith { $null }
+                Mock -CommandName Invoke-GhApi -ParameterFilter { $Method -in @('PATCH', 'POST', 'DELETE') } -MockWith { $null }
                 Mock -CommandName Invoke-Gh -MockWith {
                     [PSCustomObject] @{ ExitCode = 1; Output = 'gh: some failure'; Arguments = $Arguments; Duration = [System.TimeSpan]::Zero }
                 }
 
                 { New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha' } } |
-                    Should -Throw -ExpectedMessage '*createCommitOnBranch call failed*'
+                Should -Throw -ExpectedMessage '*createCommitOnBranch call failed*'
             }
         }
     }
@@ -209,31 +344,31 @@ Describe -Name 'New-GhSignedCommit' -Fixture {
         It -Name 'throws when neither -Addition nor -Deletion is supplied' -Test {
             InModuleScope 'PS.GitHub' {
                 { New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' } |
-                    Should -Throw -ExpectedMessage '*At least one -Addition or -Deletion*'
+                Should -Throw -ExpectedMessage '*At least one -Addition or -Deletion*'
             }
         }
         It -Name 'throws when an addition has no Path' -Test {
             InModuleScope 'PS.GitHub' {
                 { New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Content = 'alpha' } } |
-                    Should -Throw -ExpectedMessage '*non-empty Path*'
+                Should -Throw -ExpectedMessage '*non-empty Path*'
             }
         }
         It -Name 'throws when an addition has both Content and LiteralPath' -Test {
             InModuleScope 'PS.GitHub' {
                 { New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha'; LiteralPath = './x' } } |
-                    Should -Throw -ExpectedMessage '*exactly one of Content or LiteralPath*'
+                Should -Throw -ExpectedMessage '*exactly one of Content or LiteralPath*'
             }
         }
         It -Name 'throws when an addition has neither Content nor LiteralPath' -Test {
             InModuleScope 'PS.GitHub' {
                 { New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt' } } |
-                    Should -Throw -ExpectedMessage '*exactly one of Content or LiteralPath*'
+                Should -Throw -ExpectedMessage '*exactly one of Content or LiteralPath*'
             }
         }
         It -Name 'throws when a LiteralPath addition points at a missing file' -Test {
             InModuleScope 'PS.GitHub' {
                 { New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; LiteralPath = './definitely-not-here.xyz' } } |
-                    Should -Throw -ExpectedMessage '*LiteralPath not found*'
+                Should -Throw -ExpectedMessage '*LiteralPath not found*'
             }
         }
     }
@@ -250,7 +385,8 @@ Describe -Name 'New-GhSignedCommit' -Fixture {
 
                 New-GhSignedCommit -NameWithOwner 'o/r' -BaseBranch 'main' -HeadBranch 'automation/x' -Headline 'chore: x' -Addition @{ Path = 'a.txt'; Content = 'alpha' } -WhatIf | Out-Null
 
-                Should -Invoke -CommandName Invoke-GhApi -Times 0 -Exactly -ParameterFilter { $Method -in @('PATCH', 'POST') }
+                # No throwaway ref is created, so none needs deleting.
+                Should -Invoke -CommandName Invoke-GhApi -Times 0 -Exactly -ParameterFilter { $Method -in @('PATCH', 'POST', 'DELETE') }
                 Should -Invoke -CommandName Invoke-Gh -Times 0 -Exactly
             }
         }

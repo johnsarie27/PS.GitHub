@@ -12,11 +12,19 @@ function New-GhSignedCommit {
         mutation with `GITHUB_TOKEN` are signed by GitHub (shown as
         **Verified**) and satisfy the rule.
 
-        The function force-resets `-HeadBranch` to `-BaseBranch`'s current
-        head so each run produces exactly one commit off the tip of the base
-        branch (the same clean, single-commit shape a force-push gave), then
-        writes the change set onto it via the mutation and returns the new
-        commit oid.
+        The function **replaces** `-HeadBranch` rather than appending to it.
+        Each run leaves the branch holding exactly one commit on top of
+        `-BaseBranch`'s current head; anything previously on `-HeadBranch`
+        is discarded. Do not point `-HeadBranch` at a branch whose existing
+        commits matter.
+
+        To get there without ever leaving `-HeadBranch` equal to
+        `-BaseBranch` -- the state that makes GitHub auto-close an open
+        pull request -- the commit is built on a throwaway branch
+        (`ps-github/tmp/<guid>`) created at the base tip, and `-HeadBranch`
+        is then moved to the resulting commit in a single ref update. The
+        throwaway ref is deleted in a `finally`. See
+        [ADR-10](../docs/adr/0010-atomic-ref-move-for-signed-commits.md).
 
         Promoted from `PS-MCS/gh-org`'s `New-SignedCommitOnBranch` with three
         refinements over that original:
@@ -39,13 +47,14 @@ function New-GhSignedCommit {
 
         Cross-cutting behavior:
 
-          - REST calls (base-ref read, head-branch create/reset) route
-            through `Invoke-GhApi`; the GraphQL call routes through the
-            private `Invoke-Gh`. No public function invokes `& gh`
-            directly (ADR-6).
-          - `expectedHeadOid` is set to the base head SHA, giving the
-            mutation an optimistic-concurrency guard: it fails rather than
-            racing if the head moved between the reset and the commit.
+          - REST calls (base-ref read, throwaway-ref create/delete,
+            head-branch move) route through `Invoke-GhApi`; the GraphQL
+            call routes through the private `Invoke-Gh`. No public
+            function invokes `& gh` directly (ADR-6).
+          - `expectedHeadOid` is set to the base head SHA, documenting the
+            intended parent. Because the throwaway ref is created at that
+            SHA by this same call, the guard can no longer fire; see
+            ADR-10.
           - GraphQL returns HTTP 200 even on error, so the `.errors` array
             is inspected explicitly and StrictMode-safely
             (`PSObject.Properties.Name -contains 'errors'`).
@@ -54,8 +63,9 @@ function New-GhSignedCommit {
     .PARAMETER BaseBranch
         Branch whose head the new commit is placed on top of, e.g. `main`.
     .PARAMETER HeadBranch
-        Branch the commit is written to. Created if absent, force-reset to
-        `-BaseBranch`'s head if present.
+        Branch the commit is written to. Created if absent. If present it
+        is **replaced**: the branch ends up holding one commit off
+        `-BaseBranch` and its prior commits are discarded.
     .PARAMETER Headline
         Commit message headline (first line).
     .PARAMETER Body
@@ -82,8 +92,8 @@ function New-GhSignedCommit {
     .EXAMPLE
         PS C:\> New-GhSignedCommit -NameWithOwner 'PS-MCS/gh-org' -BaseBranch 'main' -HeadBranch 'automation/codeowners-baseline' -Headline 'chore(baseline): refresh CODEOWNERS baseline (auto)' -Addition @{ Path = 'codeowners/baseline/codeowners-baseline.json'; LiteralPath = './codeowners-baseline.json' }
 
-        Force-resets the automation branch to `main` and writes the manifest
-        as one GitHub-signed commit, returning its oid.
+        Replaces the automation branch with a single GitHub-signed commit
+        off `main` carrying the manifest, and returns its oid.
     .EXAMPLE
         PS C:\> $changes = @(
         >>     @{ Path = 'a.txt'; Content = 'alpha' }
@@ -101,8 +111,12 @@ function New-GhSignedCommit {
           two live callers depend on it) and the determinism axis
           ([ADR-8](../docs/adr/0008-determinism-vs-knowledge-criterion.md):
           base64 encoding, `expectedHeadOid` guard, the GraphQL-200-on-error
-          trap, force-reset ref semantics, and native-preference isolation
+          trap, atomic ref-move semantics, and native-preference isolation
           are enforced as one unit -- a strong "ship code, not prose" case).
+        - The commit is staged on a throwaway `ps-github/tmp/<guid>` branch
+          so an open PR on `-HeadBranch` is never auto-closed
+          ([ADR-10](../docs/adr/0010-atomic-ref-move-for-signed-commits.md),
+          issue #29).
         - Preference isolation and `string[]` normalization happen inside
           `Invoke-Gh` (ADR-4, ADR-6); the REST calls route through
           `Invoke-GhApi`.
@@ -180,26 +194,17 @@ function New-GhSignedCommit {
         $baseRef = Invoke-GhApi -Path ('repos/{0}/git/ref/heads/{1}' -f $NameWithOwner, $BaseBranch)
         $baseSha = $baseRef.object.sha
 
+        # Probe HeadBranch now so the post-commit move knows whether to PATCH
+        # or POST. -AllowNotFound turns a missing branch into $null.
+        $headRef = Invoke-GhApi -Path ('repos/{0}/git/ref/heads/{1}' -f $NameWithOwner, $HeadBranch) -AllowNotFound
+
         if (-not $PSCmdlet.ShouldProcess($HeadBranch, ('Create signed commit off {0}' -f $BaseBranch))) {
             return
         }
 
-        # CREATE OR FORCE-RESET HeadBranch TO THE BASE HEAD so the commit
-        # lands as a single commit off the current base tip. The existence
-        # probe uses -AllowNotFound so a missing head branch returns $null
-        # rather than raising.
-        $headRef = Invoke-GhApi -Path ('repos/{0}/git/ref/heads/{1}' -f $NameWithOwner, $HeadBranch) -AllowNotFound
-        if ($null -ne $headRef) {
-            $resetBody = @{ sha = $baseSha; force = $true } | ConvertTo-Json -Compress
-            Invoke-GhApi -Path ('repos/{0}/git/refs/heads/{1}' -f $NameWithOwner, $HeadBranch) -Method PATCH -Body $resetBody | Out-Null
-        }
-        else {
-            $createBody = @{ ref = ('refs/heads/{0}' -f $HeadBranch); sha = $baseSha } | ConvertTo-Json -Compress
-            Invoke-GhApi -Path ('repos/{0}/git/refs' -f $NameWithOwner) -Method POST -Body $createBody | Out-Null
-        }
-
         # BUILD THE createCommitOnBranch PAYLOAD. Only include fileChanges
-        # keys that are non-empty.
+        # keys that are non-empty. The branch is the throwaway ref, not
+        # HeadBranch (ADR-10).
         $fileChanges = [ordered] @{ }
         if ($additions) {
             $fileChanges.additions = @($additions)
@@ -208,11 +213,13 @@ function New-GhSignedCommit {
             $fileChanges.deletions = @($deletions)
         }
 
+        $stagingBranch = 'ps-github/tmp/{0}' -f [System.Guid]::NewGuid().ToString('N')
+
         $mutation = 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }'
         $inputObject = [ordered] @{
             branch          = [ordered] @{
                 repositoryNameWithOwner = $NameWithOwner
-                branchName              = $HeadBranch
+                branchName              = $stagingBranch
             }
             message         = [ordered] @{ headline = $Headline; body = $Body }
             expectedHeadOid = $baseSha
@@ -221,27 +228,59 @@ function New-GhSignedCommit {
         $payload = [ordered] @{ query = $mutation; variables = [ordered] @{ input = $inputObject } } |
             ConvertTo-Json -Depth 10 -Compress
 
-        # CREATE THE SIGNED COMMIT. The payload is written UTF-8 (no BOM) to a
-        # temp file by New-GhBody and passed via `gh api graphql --input
-        # <file>` so a non-ASCII Headline/Body round-trips; New-GhBody deletes
-        # the temp file even on failure. Route the gh call through Invoke-Gh
-        # (ADR-6) rather than `& gh` directly.
-        $response = New-GhBody -Text $payload -ScriptBlock {
-            param($payloadPath)
-            $result = Invoke-Gh -Arguments @('api', 'graphql', '--input', $payloadPath)
-            if ($result.ExitCode -ne 0) {
-                Write-Error -Message ('createCommitOnBranch call failed: {0}' -f ($result.Output | Out-String)) -ErrorAction Stop
+        # CREATE THE THROWAWAY REF at the base tip. The commit is built here
+        # so HeadBranch is never momentarily equal to BaseBranch, which is
+        # the state that makes GitHub auto-close an open PR (ADR-10).
+        $stagingBody = @{ ref = ('refs/heads/{0}' -f $stagingBranch); sha = $baseSha } | ConvertTo-Json -Compress
+        Invoke-GhApi -Path ('repos/{0}/git/refs' -f $NameWithOwner) -Method POST -Body $stagingBody | Out-Null
+
+        try {
+            # CREATE THE SIGNED COMMIT. The payload is written UTF-8 (no BOM)
+            # to a temp file by New-GhBody and passed via `gh api graphql
+            # --input <file>` so a non-ASCII Headline/Body round-trips;
+            # New-GhBody deletes the temp file even on failure. Route the gh
+            # call through Invoke-Gh (ADR-6) rather than `& gh` directly.
+            $response = New-GhBody -Text $payload -ScriptBlock {
+                param($payloadPath)
+                $result = Invoke-Gh -Arguments @('api', 'graphql', '--input', $payloadPath)
+                if ($result.ExitCode -ne 0) {
+                    Write-Error -Message ('createCommitOnBranch call failed: {0}' -f ($result.Output | Out-String)) -ErrorAction Stop
+                }
+                $result.Output | Out-String | ConvertFrom-Json
             }
-            $result.Output | Out-String | ConvertFrom-Json
-        }
 
-        # GraphQL RETURNS HTTP 200 EVEN ON ERROR. Inspect .errors explicitly.
-        # StrictMode-safe: on success the response has no 'errors' property.
-        if (($response.PSObject.Properties.Name -contains 'errors') -and $response.errors) {
-            $detail = ($response.errors.message -join '; ')
-            Write-Error -Message ('createCommitOnBranch returned errors: {0}' -f $detail) -ErrorAction Stop
-        }
+            # GraphQL RETURNS HTTP 200 EVEN ON ERROR. Inspect .errors
+            # explicitly. StrictMode-safe: on success the response has no
+            # 'errors' property.
+            if (($response.PSObject.Properties.Name -contains 'errors') -and $response.errors) {
+                $detail = ($response.errors.message -join '; ')
+                Write-Error -Message ('createCommitOnBranch returned errors: {0}' -f $detail) -ErrorAction Stop
+            }
 
-        $response.data.createCommitOnBranch.commit.oid
+            $newOid = $response.data.createCommitOnBranch.commit.oid
+
+            # MOVE HeadBranch TO THE NEW COMMIT IN ONE REF UPDATE: old head
+            # straight to the signed commit, with no intermediate state.
+            if ($null -ne $headRef) {
+                $moveBody = @{ sha = $newOid; force = $true } | ConvertTo-Json -Compress
+                Invoke-GhApi -Path ('repos/{0}/git/refs/heads/{1}' -f $NameWithOwner, $HeadBranch) -Method PATCH -Body $moveBody | Out-Null
+            }
+            else {
+                $createBody = @{ ref = ('refs/heads/{0}' -f $HeadBranch); sha = $newOid } | ConvertTo-Json -Compress
+                Invoke-GhApi -Path ('repos/{0}/git/refs' -f $NameWithOwner) -Method POST -Body $createBody | Out-Null
+            }
+
+            $newOid
+        }
+        finally {
+            # Best-effort: an orphaned throwaway ref is harmless, and a failed
+            # cleanup must not mask the real error from the try block.
+            try {
+                Invoke-GhApi -Path ('repos/{0}/git/refs/heads/{1}' -f $NameWithOwner, $stagingBranch) -Method DELETE -AllowNotFound | Out-Null
+            }
+            catch {
+                Write-Warning -Message ('Failed to delete throwaway ref [{0}]: {1}' -f $stagingBranch, $_.Exception.Message)
+            }
+        }
     }
 }
