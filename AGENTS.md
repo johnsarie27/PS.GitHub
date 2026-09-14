@@ -116,8 +116,6 @@ PS.GitHub/
 - Branches: `<issue-number>-<short-slug>` (e.g. `1-scaffold-adrs-ci`, `7-fix-paginate-flatten`).
 - Every PR references the tracking issue with `(refs #N)`. The final PR of a group uses `Closes #N`.
 - Commit messages follow the user's convention: action + scope in the subject, multi-paragraph rationale in the body when non-trivial.
-- Commit messages follow the user's convention: action + scope in the subject,
-  multi-paragraph rationale in the body when non-trivial.
 
 ### Function authoring
 
@@ -134,23 +132,7 @@ Every function has:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full checklist and template.
 
-### Terminal + CLI hygiene
-
-- GitHub issue/PR/comment bodies: **one paragraph per line**, never hard-wrap.
-  GitHub renders in a proportional column and wraps itself; hard-wrapping
-  produces ragged output.
-- Use `gh api <path>` + `ConvertFrom-Json` + pwsh pipeline. No `--jq` /
-  `--query` for filter/project.
-- Before retrying a non-idempotent `gh` write on ambiguous output, query state
-  (`gh issue list --search`, `gh pr list --search`) — truncated output is not
-  evidence the command failed.
-
-Canonical rules live in the user-scoped `pwsh-terminal.instructions.md` and the
-`pwsh-cli-json` skill; the notes here are for orientation. Where ephemeral
-scratch files go and when they are deleted is governed by the user-scoped
-`scratch-files.instructions.md`, not by this file.
-
-## Referenced skills and instructions
+## Referenced skills
 
 - `powershell` skill — PowerShell module + function + Pester conventions.
   `~/.agents/skills/powershell/SKILL.md` plus the
@@ -164,6 +146,3 @@ scratch files go and when they are deleted is governed by the user-scoped
   `~/.agents/skills/github-actions-security/SKILL.md`.
 - `adr` skill — ADR format and when to write one.
   `~/.agents/skills/adr/SKILL.md`.
-- User-scoped always-on instructions in the VS Code prompts folder:
-  `guidelines.instructions.md`, `pwsh-terminal.instructions.md`, and
-  `scratch-files.instructions.md`.
