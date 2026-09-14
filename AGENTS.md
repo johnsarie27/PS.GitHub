@@ -6,7 +6,7 @@ skill file from scratch.
 
 **Read first:**
 
-- [`docs/adr/`](docs/adr/) — architecturally significant decisions (`0001` through `0008`). Start here for "why is it this way?" questions.
+- [`docs/adr/`](docs/adr/) — architecturally significant decisions. Start here for "why is it this way?" questions.
 - [Umbrella tracking issue #1](https://github.com/johnsarie27/PS.GitHub/issues/1) — historical: the design rationale that motivated the module (pain points, shape decisions, what was rejected and why). Closed 2026-07-02 when v0.1.0 shipped.
 
 ## Purpose
@@ -34,7 +34,7 @@ string; endpoint shape is not something the caller has to remember.
 | `New-GhBody` | implemented (PR-C) | Authored-body handling. `-ScriptBlock` wrapper shape: writes body to a temp file, invokes the block with the path (plus any `-ArgumentList` values), cleans up in `finally` even on exception. Paragraph handling is convention-only per ADR-7. Rejects `$using:` in `-ScriptBlock` before writing the temp file; caller variables are already in scope directly (ADR-9). |
 | `Test-GhAuthScope` | implemented (PR-D) | Parses `gh auth status 2>&1` (via `Invoke-Gh`), asserts required OAuth scopes are present, emits the exact `gh auth refresh -h github.com -s <scope>` remediation on miss. Uses exact scope-list comparison (not substring regex) so `admin` cannot false-match `admin:org`. |
 | `Resolve-GhCommitSha` | implemented (PR-E) | Tag/branch/SHA → commit SHA via `GET /repos/{o}/{r}/commits/{ref}` (avoids the annotated-tag-object trap). Optional `-CrossCheck` warns on disagreement with `/git/refs/tags/{tag}`. |
-| `New-GhSignedCommit` | implemented (#19) | Creates a single GitHub-**signed** commit via the GraphQL `createCommitOnBranch` mutation (force-resets the head branch to the base tip first). Promoted from `PS-MCS/gh-org`'s `New-SignedCommitOnBranch`; decoupled from cwd (`-Addition` takes `Content`/`LiteralPath`), supports multiple `additions[]`/`deletions[]`, and pins UTF-8 via `New-GhBody` + `gh api graphql --input <file>`. REST calls route through `Invoke-GhApi`, the GraphQL call through `Invoke-Gh`. |
+| `New-GhSignedCommit` | implemented (#19) | Creates a single GitHub-**signed** commit via the GraphQL `createCommitOnBranch` mutation. **Replaces** the head branch with one commit off the base tip; prior commits on it are discarded. The commit is staged on a throwaway `ps-github/tmp/<guid>` ref and the head branch is then moved to it in a single ref update, so the head branch is never momentarily equal to base and no open PR is auto-closed (ADR-10, #29). Promoted from `PS-MCS/gh-org`'s `New-SignedCommitOnBranch`; decoupled from cwd (`-Addition` takes `Content`/`LiteralPath`), supports multiple `additions[]`/`deletions[]`, and pins UTF-8 via `New-GhBody` + `gh api graphql --input <file>`. REST calls route through `Invoke-GhApi`, the GraphQL call through `Invoke-Gh`. |
 | `Get-GhTokenExpiration` | implemented (#20) | Probes `gh api /user --include`, parses the `github-authentication-token-expiration` header, and returns a side-effect-free object `{ HasExpiration; ExpiresAt; DaysRemaining }`. Deterministic core split out of `PS-MCS/gh-org`'s `Test-PatExpiration`; the CI presentation (`Write-Warning` / `GITHUB_STEP_SUMMARY` / `exit 0`) deliberately stays in gh-org. Throws on probe failure or an unparseable header; an absent header is `HasExpiration = $false`. |
 
 ### Private helpers (dot-sourced, not exported)
@@ -116,8 +116,6 @@ PS.GitHub/
 - Branches: `<issue-number>-<short-slug>` (e.g. `1-scaffold-adrs-ci`, `7-fix-paginate-flatten`).
 - Every PR references the tracking issue with `(refs #N)`. The final PR of a group uses `Closes #N`.
 - Commit messages follow the user's convention: action + scope in the subject, multi-paragraph rationale in the body when non-trivial.
-- Commit messages follow the user's convention: action + scope in the subject,
-  multi-paragraph rationale in the body when non-trivial.
 
 ### Function authoring
 
@@ -134,39 +132,17 @@ Every function has:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full checklist and template.
 
-### Terminal + CLI hygiene
-
-- Multi-statement pwsh with here-strings or non-idempotent `gh` writes goes to
-  a temp `.ps1` under `.git/info/` (untracked); delete the temp file after the
-  write succeeds. Never leave orphaned temp body files.
-- GitHub issue/PR/comment bodies: **one paragraph per line**, never hard-wrap.
-  GitHub renders in a proportional column and wraps itself; hard-wrapping
-  produces ragged output.
-- Use `gh api <path>` + `ConvertFrom-Json` + pwsh pipeline. No `--jq` /
-  `--query` for filter/project.
-- Before retrying a non-idempotent `gh` write on ambiguous output, query state
-  (`gh issue list --search`, `gh pr list --search`) — truncated output is not
-  evidence the command failed.
-
-Canonical rules live in the user-scoped instructions file
-`~/AppData/Roaming/Code/User/prompts/pwsh-terminal.instructions.md` and the
-`pwsh-cli-json` skill; the notes here are for orientation.
-
-## Referenced skills and instructions
+## Referenced skills
 
 - `powershell` skill — PowerShell module + function + Pester conventions.
-  `c:\Users\just9539\.agents\skills\powershell\SKILL.md` plus the
+  `~/.agents/skills/powershell/SKILL.md` plus the
   `references/module-structure.md`, `references/advanced-functions.md`,
   `references/pester-testing.md` files.
 - `pwsh-cli-json` skill — `gh` / JSON CLI patterns, one-paragraph-per-line rule
   for GitHub bodies.
-  `c:\Users\just9539\.agents\skills\pwsh-cli-json\SKILL.md`.
+  `~/.agents/skills/pwsh-cli-json/SKILL.md`.
 - `github-actions-security` skill — third-party action SHA pinning, minimum
   `permissions:`, concurrency, timeouts.
-  `c:\Users\just9539\.agents\skills\github-actions-security\SKILL.md`.
+  `~/.agents/skills/github-actions-security/SKILL.md`.
 - `adr` skill — ADR format and when to write one.
-  `c:\Users\just9539\.agents\skills\adr\SKILL.md`.
-- User-scoped instructions
-  `c:\Users\just9539\AppData\Roaming\Code\User\prompts\guidelines.instructions.md`
-  and
-  `c:\Users\just9539\AppData\Roaming\Code\User\prompts\pwsh-terminal.instructions.md`.
+  `~/.agents/skills/adr/SKILL.md`.

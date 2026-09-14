@@ -110,6 +110,8 @@ Test-GhAuthScope -RequiredScope 'workflow'
 $sha = Resolve-GhCommitSha -Owner actions -Repo checkout -Ref v6.0.3
 
 # Write a GitHub-signed commit (satisfies a verified-signature ruleset).
+# NOTE: this REPLACES HeadBranch with one commit off BaseBranch; anything
+# previously on HeadBranch is discarded.
 $commit = @{
     NameWithOwner = 'my-org/my-repo'
     BaseBranch    = 'main'
