@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted — 2026-09-14
 
 ## Context
 
@@ -56,8 +56,8 @@ Supporting choices:
 
 - **Applied unconditionally**, including when `-HeadBranch` does not yet
   exist and no PR could possibly be open. One code path yields one
-  invariant to state and to test -- "`-HeadBranch` is never observed
-  equal to `-BaseBranch`" -- rather than "atomic when the branch exists,
+  invariant to state and to test — "`-HeadBranch` is never observed
+  equal to `-BaseBranch`" — rather than "atomic when the branch exists,
   reset when it does not."
 - **Fixed, recognizable prefix** `ps-github/tmp/` so a consumer repo can
   exclude the throwaway from workflow `branches:` filters or ruleset
@@ -86,9 +86,9 @@ Negative:
 - The throwaway branch briefly exists and is visible in the repo's event
   stream. It will trigger workflows keyed on `on: push` with no
   `branches:` filter or `branches: ['**']`, and on `on: create` /
-  `on: delete`. Verified to affect no current consumer -- this repo's
+  `on: delete`. Verified to affect no current consumer — this repo's
   workflows are `push: branches: [main]` plus `pull_request`, and both
-  `PS-MCS/gh-org` rulesets scope to `~DEFAULT_BRANCH` -- but it is a real
+  `PS-MCS/gh-org` rulesets scope to `~DEFAULT_BRANCH` — but it is a real
   latent cost for a future consumer repo.
 - A killed process between create and delete leaves an orphan
   `ps-github/tmp/<guid>` branch. `finally` covers thrown errors, not
@@ -105,7 +105,7 @@ Neutral:
   is inherent and unchanged either way; the field stays because it costs
   nothing and documents the intended parent.
 - Ships as a Build/patch bump (0.3.1). No new surface area, no signature
-  change -- a defect fix, unlike ADR-9's Minor bump for a new parameter.
+  change — a defect fix, unlike ADR-9's Minor bump for a new parameter.
 
 Rejected alternatives:
 
