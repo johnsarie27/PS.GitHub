@@ -136,9 +136,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full checklist and template.
 
 ### Terminal + CLI hygiene
 
-- Multi-statement pwsh with here-strings or non-idempotent `gh` writes goes to
-  a temp `.ps1` under `.git/info/` (untracked); delete the temp file after the
-  write succeeds. Never leave orphaned temp body files.
 - GitHub issue/PR/comment bodies: **one paragraph per line**, never hard-wrap.
   GitHub renders in a proportional column and wraps itself; hard-wrapping
   produces ragged output.
@@ -148,25 +145,25 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full checklist and template.
   (`gh issue list --search`, `gh pr list --search`) — truncated output is not
   evidence the command failed.
 
-Canonical rules live in the user-scoped instructions file
-`~/AppData/Roaming/Code/User/prompts/pwsh-terminal.instructions.md` and the
-`pwsh-cli-json` skill; the notes here are for orientation.
+Canonical rules live in the user-scoped `pwsh-terminal.instructions.md` and the
+`pwsh-cli-json` skill; the notes here are for orientation. Where ephemeral
+scratch files go and when they are deleted is governed by the user-scoped
+`scratch-files.instructions.md`, not by this file.
 
 ## Referenced skills and instructions
 
 - `powershell` skill — PowerShell module + function + Pester conventions.
-  `c:\Users\just9539\.agents\skills\powershell\SKILL.md` plus the
+  `~/.agents/skills/powershell/SKILL.md` plus the
   `references/module-structure.md`, `references/advanced-functions.md`,
   `references/pester-testing.md` files.
 - `pwsh-cli-json` skill — `gh` / JSON CLI patterns, one-paragraph-per-line rule
   for GitHub bodies.
-  `c:\Users\just9539\.agents\skills\pwsh-cli-json\SKILL.md`.
+  `~/.agents/skills/pwsh-cli-json/SKILL.md`.
 - `github-actions-security` skill — third-party action SHA pinning, minimum
   `permissions:`, concurrency, timeouts.
-  `c:\Users\just9539\.agents\skills\github-actions-security\SKILL.md`.
+  `~/.agents/skills/github-actions-security/SKILL.md`.
 - `adr` skill — ADR format and when to write one.
-  `c:\Users\just9539\.agents\skills\adr\SKILL.md`.
-- User-scoped instructions
-  `c:\Users\just9539\AppData\Roaming\Code\User\prompts\guidelines.instructions.md`
-  and
-  `c:\Users\just9539\AppData\Roaming\Code\User\prompts\pwsh-terminal.instructions.md`.
+  `~/.agents/skills/adr/SKILL.md`.
+- User-scoped always-on instructions in the VS Code prompts folder:
+  `guidelines.instructions.md`, `pwsh-terminal.instructions.md`, and
+  `scratch-files.instructions.md`.
