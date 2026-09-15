@@ -1,9 +1,9 @@
 # PS.GitHub
 
-[![ci](https://github.com/johnsarie27/PS.GitHub/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/johnsarie27/PS.GitHub/actions/workflows/ci.yml)
+[![ci](https://github.com/jjohns-dev/PS.GitHub/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jjohns-dev/PS.GitHub/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PowerShell](https://img.shields.io/badge/PowerShell-7.4%2B-blue?logo=powershell&logoColor=white)](https://github.com/PowerShell/PowerShell)
-[![GitHub release](https://img.shields.io/github/v/release/johnsarie27/PS.GitHub)](https://github.com/johnsarie27/PS.GitHub/releases/latest)
+[![GitHub release](https://img.shields.io/github/v/release/jjohns-dev/PS.GitHub)](https://github.com/jjohns-dev/PS.GitHub/releases/latest)
 
 Portable PowerShell helpers wrapping the [`gh` CLI](https://cli.github.com/)
 and the [GitHub REST API](https://docs.github.com/rest). Deliberately narrow:
@@ -11,7 +11,7 @@ the module targets a curated set of recurring pain points that always-on
 author-time guidance cannot prevent, because the mistakes involve stateful
 side effects that outlive the author's attention span.
 
-**Status:** v0.1.0 shipped 2026-07-02. See the [ADRs](docs/adr/) for architectural decisions and the closed [tracking issue #1](https://github.com/johnsarie27/PS.GitHub/issues/1) for the original design rationale.
+**Status:** v0.1.0 shipped 2026-07-02. See the [ADRs](docs/adr/) for architectural decisions and the closed [tracking issue #1](https://github.com/jjohns-dev/PS.GitHub/issues/1) for the original design rationale.
 
 ## What it prevents
 
@@ -39,21 +39,21 @@ Explicit non-goals are documented in
 `v0.1.0` is a git-tag-only release; there is no PSGallery publish yet.
 There are two install paths.
 
-**Preferred (with [`SecurityTools`](https://github.com/johnsarie27/SecurityTools)):**
+**Preferred (with [`SecurityTools`](https://github.com/jjohns-dev/SecurityTools)):**
 `Install-GitHubModule` consumes the release-workflow output directly —
 it fetches the latest release, downloads the `PS.GitHub-vX.Y.Z.zip` asset,
 extracts it to your module path, and unblocks the files:
 
 ```powershell
 # Requires SecurityTools:
-# https://github.com/johnsarie27/SecurityTools
-Install-GitHubModule -Account 'johnsarie27' -Repository 'PS.GitHub'
+# https://github.com/jjohns-dev/SecurityTools
+Install-GitHubModule -Account 'jjohns-dev' -Repository 'PS.GitHub'
 ```
 
 **Manual (without SecurityTools):** install by path from a clone:
 
 ```powershell
-git clone https://github.com/johnsarie27/PS.GitHub.git
+git clone https://github.com/jjohns-dev/PS.GitHub.git
 Install-Module -Path ./PS.GitHub -Scope CurrentUser -Force
 # or, for a single-shot import without site-wide install:
 Import-Module ./PS.GitHub/PS.GitHub.psd1
@@ -65,7 +65,7 @@ In CI (GitHub Actions), the equivalent is:
 - uses: actions/checkout@... # your consumer repo
 - uses: actions/checkout@... # PS.GitHub, checked out to ./PS.GitHub
   with:
-    repository: johnsarie27/PS.GitHub
+    repository: jjohns-dev/PS.GitHub
     ref: v0.1.0
     path: PS.GitHub
 - shell: pwsh
