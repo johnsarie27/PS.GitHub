@@ -63,15 +63,15 @@
             Tags         = @('GitHub', 'gh', 'REST', 'API', 'Automation', 'DevOps')
 
             # A URL to the license for this module.
-            LicenseUri   = 'https://github.com/johnsarie27/PS.GitHub/blob/main/LICENSE'
+            LicenseUri   = 'https://github.com/jjohns-dev/PS.GitHub/blob/main/LICENSE'
 
             # A URL to the main website for this project.
-            ProjectUri   = 'https://github.com/johnsarie27/PS.GitHub'
+            ProjectUri   = 'https://github.com/jjohns-dev/PS.GitHub'
 
             # Release notes are intentionally not embedded in the manifest.
             # They are auto-generated per tag from merged PR labels via
             # .github/release.yml. See:
-            # https://github.com/johnsarie27/PS.GitHub/releases
+            # https://github.com/jjohns-dev/PS.GitHub/releases
 
         } # End of PSData hashtable
 
